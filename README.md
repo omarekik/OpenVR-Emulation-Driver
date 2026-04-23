@@ -14,6 +14,7 @@ This fork also adds:
 - Added button mapping controls for A/B/X/Y controller inputs
 - XInput controller support, including gamepad-driven headset and controller input
 - Emulated HMD proximity reporting so SteamVR can treat the headset as worn
+- A standalone [`preview_app`](preview_app/README.md) that mirrors a single SteamVR compositor eye into a desktop window, created because I could not find a way to make the SteamVR compositor render only one eye by itself
 
 You will need to understand C++11 and some C++17 features at least to make the most use of this repo. It features:
 
@@ -123,6 +124,11 @@ This fork supports keyboard/mouse input and the first connected XInput controlle
 ## Notes
 - This fork is aimed at emulation and testing workflows, but SteamVR standby/sleep behavior can still vary across runtimes and individual games.
 - Unreal Engine 5 commercial titles may not all respond identically to emulated headset activity even when the HMD proximity state is reported as active.
+
+## Preview App
+This repository also includes [`preview_app`](preview_app/README.md), a small standalone OpenVR desktop utility that mirrors a single compositor eye into its own window.
+
+I created it because I could not find a way to get the SteamVR compositor to render only one eye on its own. The app provides that focused single-eye preview instead, and defaults to the left eye through `kPreviewEye` in [`preview_app/SteamVRMirrorPreview.cpp`](preview_app/SteamVRMirrorPreview.cpp).
 
 ## Debugging
 Debugging SteamVR is not as simple as it seems because of the startup procedure it uses. The SteamVR ecosystem consists of a couple programs:
