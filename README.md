@@ -1,4 +1,4 @@
-# Simple OpenVR Driver Tutorial
+# OpenVR-Emulation-Driver
 
 This repository is a fork of the original [Simple-OpenVR-Driver-Tutorial](https://github.com/terminal29/Simple-OpenVR-Driver-Tutorial) with additional improvements on top of the upstream tutorial project.
 
