@@ -1,5 +1,37 @@
 #include "HMDDevice.hpp"
+#include "ControllerDevice.hpp"
 #include <Windows.h>
+#include <Xinput.h>
+
+namespace {
+    constexpr DWORD kXInputControllerIndex = 0;
+    constexpr float kXInputLookSpeed = 1.5f;
+    constexpr float kAimModeThreshold = 0.2f;
+    constexpr float kSecondsFromVsyncToPhotons = 0.011f;
+
+    float NormalizeThumbAxis(SHORT value, SHORT deadzone)
+    {
+        if (value > deadzone) {
+            return static_cast<float>(value - deadzone) / static_cast<float>(32767 - deadzone);
+        }
+
+        if (value < -deadzone) {
+            return static_cast<float>(value + deadzone) / static_cast<float>(32768 - deadzone);
+        }
+
+        return 0.0f;
+    }
+
+    float NormalizeTrigger(BYTE value)
+    {
+        if (value <= XINPUT_GAMEPAD_TRIGGER_THRESHOLD) {
+            return 0.0f;
+        }
+
+        return static_cast<float>(value - XINPUT_GAMEPAD_TRIGGER_THRESHOLD) / static_cast<float>(255 - XINPUT_GAMEPAD_TRIGGER_THRESHOLD);
+    }
+
+}
 
 ExampleDriver::HMDDevice::HMDDevice(std::string serial):serial_(serial)
 {
@@ -19,8 +51,34 @@ void ExampleDriver::HMDDevice::Update()
     auto pose = IVRDevice::MakeDefaultPose();
 
     float delta_seconds = GetDriver()->GetLastFrameTime().count() / 1000.0f;
+    constexpr float mouse_sensitivity = 0.003f;
+
+    bool space_down = (GetAsyncKeyState(VK_SPACE) & 0x8000) != 0;
+    if (space_down && !this->space_was_down_) {
+        this->mouse_emulation_enabled_ = !this->mouse_emulation_enabled_;
+        GetDriver()->Log(std::string("Mouse emulation ") + (this->mouse_emulation_enabled_ ? "enabled" : "disabled"));
+    }
+    this->space_was_down_ = space_down;
 
     // Get orientation
+    POINT current_mouse_pos;
+    if (GetCursorPos(&current_mouse_pos)) {
+        if (this->mouse_emulation_enabled_ && this->mouse_pos_valid_) {
+            this->rot_y_ -= (current_mouse_pos.x - this->last_mouse_x_) * mouse_sensitivity;
+            this->rot_x_ -= (current_mouse_pos.y - this->last_mouse_y_) * mouse_sensitivity;
+        }
+        this->last_mouse_x_ = current_mouse_pos.x;
+        this->last_mouse_y_ = current_mouse_pos.y;
+        this->mouse_pos_valid_ = true;
+    }
+
+    XINPUT_STATE xinput_state = {};
+    bool has_xinput = XInputGetState(kXInputControllerIndex, &xinput_state) == ERROR_SUCCESS;
+    bool aim_mode_active = has_xinput && NormalizeTrigger(xinput_state.Gamepad.bLeftTrigger) > kAimModeThreshold;
+    if (has_xinput && !aim_mode_active) {
+        this->rot_y_ -= NormalizeThumbAxis(xinput_state.Gamepad.sThumbRX, XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE) * kXInputLookSpeed * delta_seconds;
+        this->rot_x_ += NormalizeThumbAxis(xinput_state.Gamepad.sThumbRY, XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE) * kXInputLookSpeed * delta_seconds;
+    }
     this->rot_y_ += (1.0f * (GetAsyncKeyState(VK_RIGHT) == 0) - 1.0f * (GetAsyncKeyState(VK_LEFT) == 0)) * delta_seconds;
     this->rot_x_ += (-1.0f * (GetAsyncKeyState(VK_UP) == 0) + 1.0f * (GetAsyncKeyState(VK_DOWN) == 0)) * delta_seconds;
     this->rot_x_ = std::fmax(this->rot_x_, -3.14159f/2);
@@ -40,9 +98,34 @@ void ExampleDriver::HMDDevice::Update()
     // Update position based on rotation
     linalg::vec<float, 3> forward_vec{-1.0f * (GetAsyncKeyState(0x44) == 0) + 1.0f * (GetAsyncKeyState(0x41) == 0), 0, 0};
     linalg::vec<float, 3> right_vec{0, 0, 1.0f * (GetAsyncKeyState(0x57) == 0) - 1.0f * (GetAsyncKeyState(0x53) == 0) };
+
+    bool left_stick_vr_joystick_enabled = false;
+    for (const auto& device : GetDriver()->GetDevices()) {
+        if (device->GetDeviceType() != DeviceType::CONTROLLER) {
+            continue;
+        }
+
+        auto controller = static_cast<ControllerDevice*>(device.get());
+        if (controller->GetHandedness() == ControllerDevice::Handedness::LEFT) {
+            left_stick_vr_joystick_enabled = controller->IsJoystickEnabled();
+            break;
+        }
+    }
+
+    if (has_xinput && !left_stick_vr_joystick_enabled) {
+        forward_vec.x += NormalizeThumbAxis(xinput_state.Gamepad.sThumbLX, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
+        right_vec.z -= NormalizeThumbAxis(xinput_state.Gamepad.sThumbLY, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
+    }
+    if (has_xinput) {
+        forward_vec.x += (xinput_state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_RIGHT) ? 1.0f : 0.0f;
+        forward_vec.x -= (xinput_state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_LEFT) ? 1.0f : 0.0f;
+        right_vec.z -= (xinput_state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_UP) ? 1.0f : 0.0f;
+        right_vec.z += (xinput_state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_DOWN) ? 1.0f : 0.0f;
+    }
+
     linalg::vec<float, 3> final_dir = forward_vec + right_vec;
     if (linalg::length(final_dir) > 0.01) {
-        final_dir = linalg::normalize(final_dir) * (float)delta_seconds;
+        final_dir = linalg::normalize(final_dir) * std::fmin(linalg::length(final_dir), 1.0f) * (float)delta_seconds;
         final_dir = linalg::qrot(pose_rot, final_dir);
         this->pos_x_ += final_dir.x;
         this->pos_y_ += final_dir.y;
@@ -52,6 +135,11 @@ void ExampleDriver::HMDDevice::Update()
     pose.vecPosition[0] = (float) this->pos_x_;
     pose.vecPosition[1] = (float) this->pos_y_;
     pose.vecPosition[2] = (float) this->pos_z_;
+
+    // Report the emulated HMD as being worn so SteamVR doesn't sleep it.
+    if (this->proximity_component_ != 0) {
+        GetDriver()->GetInput()->UpdateBooleanComponent(this->proximity_component_, true, 0);
+    }
 
     // Post pose
     GetDriver()->GetDriverHost()->TrackedDevicePoseUpdated(this->device_index_, pose, sizeof(vr::DriverPose_t));
@@ -71,6 +159,12 @@ vr::TrackedDeviceIndex_t ExampleDriver::HMDDevice::GetDeviceIndex()
 vr::EVRInitError ExampleDriver::HMDDevice::Activate(uint32_t unObjectId)
 {
     this->device_index_ = unObjectId;
+    POINT current_mouse_pos;
+    this->mouse_pos_valid_ = GetCursorPos(&current_mouse_pos) == TRUE;
+    if (this->mouse_pos_valid_) {
+        this->last_mouse_x_ = current_mouse_pos.x;
+        this->last_mouse_y_ = current_mouse_pos.y;
+    }
 
     GetDriver()->Log("Activating HMD " + this->serial_);
 
@@ -86,7 +180,7 @@ vr::EVRInitError ExampleDriver::HMDDevice::Activate(uint32_t unObjectId)
     try {
         int window_y = std::get<int>(GetDriver()->GetSettingsValue("window_y"));
         if (window_y > 0)
-            this->window_x_ = window_y;
+            this->window_y_ = window_y;
     }
     catch (const std::bad_variant_access&) {}; // Wrong type or doesnt exist
 
@@ -107,14 +201,18 @@ vr::EVRInitError ExampleDriver::HMDDevice::Activate(uint32_t unObjectId)
     // Get the properties handle
     auto props = GetDriver()->GetProperties()->TrackedDeviceToPropertyContainer(this->device_index_);
 
+    GetDriver()->GetInput()->CreateBooleanComponent(props, "/proximity", &this->proximity_component_);
+
     // Set some universe ID (Must be 2 or higher)
     GetDriver()->GetProperties()->SetUint64Property(props, vr::Prop_CurrentUniverseId_Uint64, 2);
 
     // Set the IPD to be whatever steam has configured
     GetDriver()->GetProperties()->SetFloatProperty(props, vr::Prop_UserIpdMeters_Float, vr::VRSettings()->GetFloat(vr::k_pch_SteamVR_Section, vr::k_pch_SteamVR_IPD_Float));
+    GetDriver()->GetProperties()->SetFloatProperty(props, vr::Prop_UserHeadToEyeDepthMeters_Float, 0.0f);
 
     // Set the display FPS
     GetDriver()->GetProperties()->SetFloatProperty(props, vr::Prop_DisplayFrequency_Float, 90.f);
+    GetDriver()->GetProperties()->SetFloatProperty(props, vr::Prop_SecondsFromVsyncToPhotons_Float, kSecondsFromVsyncToPhotons);
     
     // Set up a model "number" (not needed but good to have)
     GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_ModelNumber_String, "EXAMPLE_HMD_DEVICE");
@@ -130,8 +228,10 @@ vr::EVRInitError ExampleDriver::HMDDevice::Activate(uint32_t unObjectId)
     GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceStandby_String, "{example}/icons/hmd_not_ready.png");
     GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceAlertLow_String, "{example}/icons/hmd_not_ready.png");
 
-    
-
+    GetDriver()->GetProperties()->SetBoolProperty(props, vr::Prop_HasDisplayComponent_Bool, true);
+    GetDriver()->GetProperties()->SetBoolProperty(props, vr::Prop_DeviceCanPowerOff_Bool, false);
+    GetDriver()->GetProperties()->SetBoolProperty(props, vr::Prop_IsOnDesktop_Bool, false);
+    GetDriver()->GetProperties()->SetBoolProperty(props, vr::Prop_DisplayDebugMode_Bool, true);
 
     return vr::EVRInitError::VRInitError_None;
 }
@@ -184,28 +284,32 @@ bool ExampleDriver::HMDDevice::IsDisplayRealDisplay()
 
 void ExampleDriver::HMDDevice::GetRecommendedRenderTargetSize(uint32_t* pnWidth, uint32_t* pnHeight)
 {
-    *pnWidth = this->window_width_;
+    *pnWidth = this->window_width_ / 2;
     *pnHeight = this->window_height_;
 }
 
 void ExampleDriver::HMDDevice::GetEyeOutputViewport(vr::EVREye eEye, uint32_t* pnX, uint32_t* pnY, uint32_t* pnWidth, uint32_t* pnHeight)
 {
+    const uint32_t eye_width = this->window_width_ / 2;
+
     *pnY = 0;
-    *pnWidth = this->window_width_ / 2;
+    *pnWidth = eye_width;
     *pnHeight = this->window_height_;
 
     if (eEye == vr::EVREye::Eye_Left) {
         *pnX = 0;
     }
     else {
-        *pnX = this->window_width_ / 2;
+        *pnX = eye_width;
     }
 }
 
 void ExampleDriver::HMDDevice::GetProjectionRaw(vr::EVREye eEye, float* pfLeft, float* pfRight, float* pfTop, float* pfBottom)
 {
-    *pfLeft = -1;
-    *pfRight = 1;
+    const float eye_aspect = static_cast<float>(this->window_width_ / 2) / static_cast<float>(this->window_height_);
+
+    *pfLeft = -eye_aspect;
+    *pfRight = eye_aspect;
     *pfTop = -1;
     *pfBottom = 1;
 }

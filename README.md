@@ -1,14 +1,21 @@
 # Simple OpenVR Driver Tutorial
 
-> 2025 Update:
->
-> I don't have any plans to update this repo anymore as my interests have moved elsewhere. It's been a couple years since I wrote this and I'm sure at some point it will / already has stopped working, but I'm glad if it helped anyone out in making your custom SteamVR devices.
->
-> If someone has an up-to-date version of this please let me know and I'll drop a link here.
->
-> Thank you :) 
+This repository is a fork of the original [Simple-OpenVR-Driver-Tutorial](https://github.com/terminal29/Simple-OpenVR-Driver-Tutorial) with additional improvements on top of the upstream tutorial project.
 
-I created this driver as a demonstration for how to write some of the most common things a SteamVR/OpenVR driver would want to do. You will need to understand C++11 and some C++17 features at least to make the most use of this repo. It features:
+This fork is intended for VR emulation driver use cases where no physical VR headset is available. The driver can emulate a headset and controllers in software for development, testing, and input experimentation.
+
+For emulation testing purposes, this fork has been tested with Unreal Engine 5 VR games, including Metro Awakening.
+
+![Metro Awakening emulation screenshot](images/img1.png)
+
+This fork also adds:
+
+- OpenXR-compatible controller poses and bindings
+- Added button mapping controls for A/B/X/Y controller inputs
+- XInput controller support, including gamepad-driven headset and controller input
+- Emulated HMD proximity reporting so SteamVR can treat the headset as worn
+
+You will need to understand C++11 and some C++17 features at least to make the most use of this repo. It features:
 
 - [Central driver setup](driver_files/src/Driver/IVRDriver.hpp)
 to manage addition and removal of devices, and updating devices each frame, collecting events, access to OpenVR internals, etc...
@@ -20,10 +27,10 @@ to load user settings
 for simple debug messages
 
 - [Tracked HMD](driver_files/src/Driver/HMDDevice.hpp)
-which is a tracked device that acts as a video output
+which is a tracked device that can emulate a VR headset when no physical headset hardware is connected, including proximity reporting for headset-worn state
 
 - [Tracked Controllers](driver_files/src/Driver/ControllerDevice.hpp)
-which is a tracked device that has mapped buttons, triggers, touchpads, joysticks, etc...
+which is a tracked device that has mapped controller buttons, triggers, joysticks, haptics, XInput support, and OpenXR-compatible bindings
 
 - [Tracked Trackers](driver_files/src/Driver/TrackerDevice.hpp)
 which is a device purely meant for tracking the location of an object
@@ -38,10 +45,10 @@ so your new controllers look cool
 because a debugger is a developers best friend <sup>(besides ctrl-z)</sup>.
 
 ## Building
-- Clone the project and submodules
-	- `git clone --recursive https://github.com/terminal29/Simple-OpenVR-Driver-Tutorial.git`
+- Clone this fork and its submodules
+	- `git clone --recursive https://github.com/Nmzik/OpenVR-Emulation-Driver.git`
 - Build project with CMake
-	- `cd Simple-OpenVR-Driver-Tutorial && cmake .`
+	- `cd OpenVR-Emulation-Driver && cmake .`
 - Open project with Visual Studio and hit build
 	- Driver folder structure and files will be copied to the output folder as `example`.
 	
@@ -82,6 +89,40 @@ or
 	"version" : 1
 }
 ```
+
+## Current Controls
+This fork supports keyboard/mouse input and the first connected XInput controller.
+
+### HMD Controls
+- `Space`: toggle mouse look for the emulated HMD
+- Mouse: look around when mouse look is enabled
+- Arrow keys: rotate the HMD
+- `W/A/S/D`: move the HMD
+- XInput right stick: HMD look by default
+- XInput left stick: HMD movement when left joystick mode is disabled
+- XInput D-pad: HMD movement
+- The emulated HMD reports `/proximity` as active so SteamVR sees it as worn
+
+### Controller Button Mapping
+- Right controller: `E` = `A`, `R` = `B`
+- Left controller: `Q` = `X`, `F` = `Y`
+- XInput right controller buttons: `A`, `B`, `RT`, `RB`, right stick click, `Start`
+- XInput left controller buttons: `X`, `Y`, `LB`, left stick click, `Back`
+- `LT`: left trigger input until aim mode is engaged
+
+### XInput Joystick Modes
+- Left stick starts in left VR joystick mode
+- Press `X + Y` to toggle the left stick between left VR joystick input and HMD movement
+- Right stick starts in HMD look mode
+- Press `A + B` to toggle the right stick between right VR joystick input and HMD look
+- Holding `LT` enters aim mode for the right controller when the right stick is not in right joystick mode, replacing right-stick HMD look while held
+
+### Haptics
+- OpenVR haptic events are forwarded to XInput rumble
+
+## Notes
+- This fork is aimed at emulation and testing workflows, but SteamVR standby/sleep behavior can still vary across runtimes and individual games.
+- Unreal Engine 5 commercial titles may not all respond identically to emulated headset activity even when the HMD proximity state is reported as active.
 
 ## Debugging
 Debugging SteamVR is not as simple as it seems because of the startup procedure it uses. The SteamVR ecosystem consists of a couple programs:

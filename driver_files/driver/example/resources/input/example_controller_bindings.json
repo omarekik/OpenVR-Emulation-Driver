@@ -6,6 +6,7 @@
   "driver_name": "example",
   "input_bindingui_mode": "controller_handed",
   "should_show_binding_errors": true,
+  "compatibility_mode_controller_type": "oculus_touch",
   "input_bindingui_left": {
     "image": "{example}/icons/example_controller_left.svg"
   },
@@ -14,6 +15,26 @@
   },
   "input_source": {
     "/pose/raw" : {
+      "type" : "pose",
+      "binding_image_point" : [ 0,0 ]
+    },
+    "/pose/base" : {
+      "type" : "pose",
+      "binding_image_point" : [ 0,0 ]
+    },
+    "/pose/handgrip" : {
+      "type" : "pose",
+      "binding_image_point" : [ 0,0 ]
+    },
+    "/pose/tip" : {
+      "type" : "pose",
+      "binding_image_point" : [ 0,0 ]
+    },
+    "/pose/openxr_aim" : {
+      "type" : "pose",
+      "binding_image_point" : [ 0,0 ]
+    },
+    "/pose/openxr_grip" : {
       "type" : "pose",
       "binding_image_point" : [ 0,0 ]
     },
@@ -28,6 +49,18 @@
       "binding_image_point": [0,0]
     },
     "/input/b": {
+      "type": "button",
+      "click": true,
+      "touch" : true,
+      "binding_image_point": [0,0]
+    },
+    "/input/x": {
+      "type": "button",
+      "click": true,
+      "touch" : true,
+      "binding_image_point": [0,0]
+    },
+    "/input/y": {
       "type": "button",
       "click": true,
       "touch" : true,

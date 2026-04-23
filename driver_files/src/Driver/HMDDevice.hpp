@@ -48,6 +48,13 @@ namespace ExampleDriver {
 
         float pos_x_ = 0, pos_y_ = 0, pos_z_ = 0;
         float rot_y_ = 0, rot_x_ = 0;
+        long last_mouse_x_ = 0;
+        long last_mouse_y_ = 0;
+        bool mouse_pos_valid_ = false;
+        bool mouse_emulation_enabled_ = true;
+        bool space_was_down_ = false;
+
+        vr::VRInputComponentHandle_t proximity_component_ = 0;
 
     };
 };

@@ -34,6 +34,7 @@ namespace ExampleDriver {
             virtual void* GetComponent(const char* pchComponentNameAndVersion) override;
             virtual void DebugRequest(const char* pchRequest, char* pchResponseBuffer, uint32_t unResponseBufferSize) override;
             virtual vr::DriverPose_t GetPose() override;
+            bool IsJoystickEnabled() const;
 
     private:
         vr::TrackedDeviceIndex_t device_index_ = vr::k_unTrackedDeviceIndexInvalid;
@@ -44,6 +45,11 @@ namespace ExampleDriver {
 
         bool did_vibrate_ = false;
         float vibrate_anim_state_ = 0.f;
+        float aim_yaw_ = 0.f;
+        float aim_pitch_ = 0.f;
+
+        bool joystick_enabled_ = false;
+        bool joystick_toggle_was_pressed_ = false;
 
         vr::VRInputComponentHandle_t haptic_component_ = 0;
 
@@ -52,6 +58,12 @@ namespace ExampleDriver {
 
         vr::VRInputComponentHandle_t b_button_click_component_ = 0;
         vr::VRInputComponentHandle_t b_button_touch_component_ = 0;
+
+        vr::VRInputComponentHandle_t x_button_click_component_ = 0;
+        vr::VRInputComponentHandle_t x_button_touch_component_ = 0;
+
+        vr::VRInputComponentHandle_t y_button_click_component_ = 0;
+        vr::VRInputComponentHandle_t y_button_touch_component_ = 0;
 
         vr::VRInputComponentHandle_t trigger_value_component_ = 0;
         vr::VRInputComponentHandle_t trigger_click_component_ = 0;

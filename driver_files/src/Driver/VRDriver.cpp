@@ -59,7 +59,9 @@ void ExampleDriver::VRDriver::RunFrame()
 
 bool ExampleDriver::VRDriver::ShouldBlockStandbyMode()
 {
-    return false;
+    // Emulated devices do not have a physical wake signal, so going into
+    // standby makes some games treat the HMD like it disappeared.
+    return true;
 }
 
 void ExampleDriver::VRDriver::EnterStandby()
