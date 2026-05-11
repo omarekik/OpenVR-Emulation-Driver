@@ -6,10 +6,6 @@
 
 namespace {
     constexpr DWORD kXInputControllerIndex = 0;
-    constexpr float kTriggerClickThreshold = 0.75f;
-    constexpr float kAimModeThreshold = 0.2f;
-    constexpr float kControllerAimSpeed = 1.5f;
-    constexpr float kMaxAimPitch = 3.14159f / 3.0f;
     constexpr float kMinHapticDurationSeconds = 0.02f;
 
     float NormalizeThumbAxis(SHORT value, SHORT deadzone)
@@ -86,10 +82,10 @@ namespace {
     }
 }
 
-ExampleDriver::ControllerDevice::ControllerDevice(std::string serial, ControllerDevice::Handedness handedness):
+ExampleDriver::ControllerDevice::ControllerDevice(std::string serial, ControllerDevice::Handedness handedness, InputConfig config):
     serial_(serial),
     handedness_(handedness),
-    joystick_enabled_(handedness == Handedness::LEFT)
+    config_(std::move(config))
 {
 }
 
@@ -139,7 +135,9 @@ void ExampleDriver::ControllerDevice::Update()
     bool has_xinput = XInputGetState(kXInputControllerIndex, &xinput_state) == ERROR_SUCCESS;
     bool is_left_controller = this->handedness_ == Handedness::LEFT;
     bool is_right_controller = this->handedness_ == Handedness::RIGHT;
-    bool aim_mode_active = has_xinput && NormalizeTrigger(xinput_state.Gamepad.bLeftTrigger) > kAimModeThreshold;
+
+    const auto& lc = config_.left_controller;
+    const auto& rc = config_.right_controller;
 
     // Find a HMD
     auto devices = GetDriver()->GetDevices();
@@ -158,7 +156,22 @@ void ExampleDriver::ControllerDevice::Update()
         // Left hand controller on the left, right hand controller on the right, any other handedness sticks to the middle
         float controller_x = this->handedness_ == Handedness::LEFT ? -0.2f : (this->handedness_ == Handedness::RIGHT ? 0.2f : 0.f);
 
-        linalg::vec<float, 3> hmd_pose_offset = { controller_x, controller_y, -0.5f };
+        // D-pad and gamepad X/Y adjust the right controller pose offset
+        if (is_right_controller && has_xinput) {
+            float spd = rc.pose_move_speed * delta_seconds;
+            if (xinput_state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_RIGHT) this->pose_adjust_x_ += spd;
+            if (xinput_state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_LEFT)  this->pose_adjust_x_ -= spd;
+            if (xinput_state.Gamepad.wButtons & XINPUT_GAMEPAD_Y)          this->pose_adjust_y_ += spd;
+            if (xinput_state.Gamepad.wButtons & XINPUT_GAMEPAD_X)          this->pose_adjust_y_ -= spd;
+            if (xinput_state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_UP)    this->pose_adjust_z_ -= spd;
+            if (xinput_state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_DOWN)  this->pose_adjust_z_ += spd;
+        }
+
+        float adj_x = is_right_controller ? this->pose_adjust_x_ : 0.f;
+        float adj_y = is_right_controller ? this->pose_adjust_y_ : 0.f;
+        float adj_z = is_right_controller ? this->pose_adjust_z_ : 0.f;
+
+        linalg::vec<float, 3> hmd_pose_offset = { controller_x + adj_x, controller_y + adj_y, -0.5f + adj_z };
 
         hmd_pose_offset = linalg::qrot(hmd_rotation, hmd_pose_offset);
 
@@ -168,28 +181,8 @@ void ExampleDriver::ControllerDevice::Update()
         pose.vecPosition[1] = final_pose.y;
         pose.vecPosition[2] = final_pose.z;
 
+        // Controllers inherit the HMD rotation (no independent aim mode)
         linalg::vec<float, 4> controller_rotation = hmd_rotation;
-        if (is_right_controller) {
-            if (aim_mode_active && !this->joystick_enabled_) {
-                this->aim_yaw_ -= NormalizeThumbAxis(xinput_state.Gamepad.sThumbRX, XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE) * kControllerAimSpeed * delta_seconds;
-                this->aim_pitch_ += NormalizeThumbAxis(xinput_state.Gamepad.sThumbRY, XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE) * kControllerAimSpeed * delta_seconds;
-                this->aim_pitch_ = std::fmax(this->aim_pitch_, -kMaxAimPitch);
-                this->aim_pitch_ = std::fmin(this->aim_pitch_, kMaxAimPitch);
-            }
-            else {
-                this->aim_yaw_ = 0.0f;
-                this->aim_pitch_ = 0.0f;
-            }
-
-            linalg::vec<float, 4> aim_y_quat{ 0, std::sinf(this->aim_yaw_ / 2), 0, std::cosf(this->aim_yaw_ / 2) };
-            linalg::vec<float, 4> aim_x_quat{ std::sinf(this->aim_pitch_ / 2), 0, 0, std::cosf(this->aim_pitch_ / 2) };
-            linalg::vec<float, 4> aim_rotation = linalg::qmul(aim_y_quat, aim_x_quat);
-            controller_rotation = linalg::qmul(hmd_rotation, aim_rotation);
-        }
-        else {
-            this->aim_yaw_ = 0.0f;
-            this->aim_pitch_ = 0.0f;
-        }
 
         pose.qRotation.w = controller_rotation.w;
         pose.qRotation.x = controller_rotation.x;
@@ -210,52 +203,21 @@ void ExampleDriver::ControllerDevice::Update()
         return has_xinput && (xinput_state.Gamepad.wButtons & button_mask) != 0;
     };
 
-    // Keyboard bindings:
-    // Right controller: E = A, R = B
-    // Left controller:  Q = X, F = Y
-    // XInput bindings:
-    // Right controller: A/B, RT trigger, RB grip, right stick, START system
-    // Left controller:  X/Y, LT trigger, LB grip, left stick, BACK system
+    // Button mappings
+    // A/B: right controller only, keyboard (E/R) or gamepad A/B
+    // X/Y: consumed by right-controller pose adjustment — always false as VR inputs
     update_button_state(
         this->a_button_click_component_,
         this->a_button_touch_component_,
-        (is_right_controller && GetAsyncKeyState(0x45 /* E */) != 0) || (is_right_controller && gamepad_button_pressed(XINPUT_GAMEPAD_A))
+        is_right_controller && (GetAsyncKeyState(rc.key_a) != 0 || gamepad_button_pressed(rc.btn_a))
     );
     update_button_state(
         this->b_button_click_component_,
         this->b_button_touch_component_,
-        (is_right_controller && GetAsyncKeyState(0x52 /* R */) != 0) || (is_right_controller && gamepad_button_pressed(XINPUT_GAMEPAD_B))
+        is_right_controller && (GetAsyncKeyState(rc.key_b) != 0 || gamepad_button_pressed(rc.btn_b))
     );
-    update_button_state(
-        this->x_button_click_component_,
-        this->x_button_touch_component_,
-        (is_left_controller && GetAsyncKeyState(0x51 /* Q */) != 0) || (is_left_controller && gamepad_button_pressed(XINPUT_GAMEPAD_X))
-    );
-    update_button_state(
-        this->y_button_click_component_,
-        this->y_button_touch_component_,
-        (is_left_controller && GetAsyncKeyState(0x46 /* F */) != 0) || (is_left_controller && gamepad_button_pressed(XINPUT_GAMEPAD_Y))
-    );
-
-    // Toggle joystick control once per combo press.
-    // Right controller: A+B toggles right stick as right VR joystick.
-    // Left controller: X+Y toggles left stick between HMD movement and left VR joystick.
-    bool joystick_toggle_pressed = is_right_controller
-        && gamepad_button_pressed(XINPUT_GAMEPAD_A)
-        && gamepad_button_pressed(XINPUT_GAMEPAD_B);
-    if (is_left_controller) {
-        joystick_toggle_pressed = gamepad_button_pressed(XINPUT_GAMEPAD_X)
-            && gamepad_button_pressed(XINPUT_GAMEPAD_Y);
-    }
-
-    if (joystick_toggle_pressed && !this->joystick_toggle_was_pressed_) {
-        if (is_left_controller || is_right_controller) {
-            this->joystick_enabled_ = !this->joystick_enabled_;
-            GetDriver()->Log(std::string(is_left_controller ? "Left" : "Right") + " controller joystick control "
-                + (this->joystick_enabled_ ? "enabled" : "disabled"));
-        }
-    }
-    this->joystick_toggle_was_pressed_ = joystick_toggle_pressed;
+    update_button_state(this->x_button_click_component_, this->x_button_touch_component_, false);
+    update_button_state(this->y_button_click_component_, this->y_button_touch_component_, false);
 
     float trigger_value = 0.0f;
     float grip_value = 0.0f;
@@ -264,34 +226,27 @@ void ExampleDriver::ControllerDevice::Update()
     bool joystick_click = false;
     bool system_pressed = false;
 
-    // Stick axes are consumed by HMD move/look and LT aim mode unless their joystick mode is enabled.
+    // Left controller: LT/LB/left-stick/X/Y all consumed by HMD and right-controller pose.
+    // Right controller: right trigger, RB, right stick (always joystick), START, RIGHT_THUMB.
     if (has_xinput) {
         if (is_left_controller) {
-            trigger_value = aim_mode_active ? 0.0f : NormalizeTrigger(xinput_state.Gamepad.bLeftTrigger);
-            grip_value = gamepad_button_pressed(XINPUT_GAMEPAD_LEFT_SHOULDER) ? 1.0f : 0.0f;
-            joystick_click = gamepad_button_pressed(XINPUT_GAMEPAD_LEFT_THUMB);
-            system_pressed = gamepad_button_pressed(XINPUT_GAMEPAD_BACK);
-
-            if (this->joystick_enabled_) {
-                joystick_x = NormalizeThumbAxis(xinput_state.Gamepad.sThumbLX, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
-                joystick_y = NormalizeThumbAxis(xinput_state.Gamepad.sThumbLY, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
-            }
+            system_pressed = gamepad_button_pressed(lc.btn_system);
+            joystick_click = gamepad_button_pressed(lc.btn_joystick_click);
         }
         else if (is_right_controller) {
-            trigger_value = NormalizeTrigger(xinput_state.Gamepad.bRightTrigger);
-            grip_value = gamepad_button_pressed(XINPUT_GAMEPAD_RIGHT_SHOULDER) ? 1.0f : 0.0f;
-            joystick_click = gamepad_button_pressed(XINPUT_GAMEPAD_RIGHT_THUMB);
-            system_pressed = gamepad_button_pressed(XINPUT_GAMEPAD_START);
-            
-            // Enable joystick control if activated
-            if (this->joystick_enabled_) {
-                joystick_x = NormalizeThumbAxis(xinput_state.Gamepad.sThumbRX, XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE);
-                joystick_y = NormalizeThumbAxis(xinput_state.Gamepad.sThumbRY, XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE);
-            }
+            trigger_value  = NormalizeTrigger(xinput_state.Gamepad.bRightTrigger);
+            grip_value     = gamepad_button_pressed(rc.btn_grip) ? 1.0f : 0.0f;
+            joystick_click = gamepad_button_pressed(rc.btn_joystick_click);
+            system_pressed = gamepad_button_pressed(rc.btn_system);
+            // Right stick is always the VR joystick for the right controller
+            joystick_x = NormalizeThumbAxis(xinput_state.Gamepad.sThumbRX, XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE);
+            joystick_y = NormalizeThumbAxis(xinput_state.Gamepad.sThumbRY, XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE);
         }
     }
 
-    GetDriver()->GetInput()->UpdateBooleanComponent(this->trigger_click_component_, trigger_value >= kTriggerClickThreshold, 0);
+    float trigger_click_threshold = rc.trigger_click_threshold;
+
+    GetDriver()->GetInput()->UpdateBooleanComponent(this->trigger_click_component_, trigger_value >= trigger_click_threshold, 0);
     GetDriver()->GetInput()->UpdateBooleanComponent(this->trigger_touch_component_, trigger_value > 0.0f, 0);
     update_scalar_state(this->trigger_value_component_, trigger_value);
 

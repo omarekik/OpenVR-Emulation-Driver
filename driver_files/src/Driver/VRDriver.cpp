@@ -3,6 +3,7 @@
 #include <Driver/TrackerDevice.hpp>
 #include <Driver/ControllerDevice.hpp>
 #include <Driver/TrackingReferenceDevice.hpp>
+#include <Driver/InputConfig.hpp>
 
 vr::EVRInitError ExampleDriver::VRDriver::Init(vr::IVRDriverContext* pDriverContext)
 {
@@ -13,12 +14,16 @@ vr::EVRInitError ExampleDriver::VRDriver::Init(vr::IVRDriverContext* pDriverCont
 
     Log("Activating ExampleDriver...");
 
+    // Load input mapping from resources/input_mapping.ini (falls back to defaults if absent)
+    auto config = InputConfig::LoadFromDriverRoot();
+    Log("Input mapping loaded from resources/input_mapping.ini");
+
     // Add a HMD
-    this->AddDevice(std::make_shared<HMDDevice>("Example_HMDDevice"));
+    this->AddDevice(std::make_shared<HMDDevice>("Example_HMDDevice", config));
 
     // Add a couple controllers
-    this->AddDevice(std::make_shared<ControllerDevice>("Example_ControllerDevice_Left", ControllerDevice::Handedness::LEFT));
-    this->AddDevice(std::make_shared<ControllerDevice>("Example_ControllerDevice_Right", ControllerDevice::Handedness::RIGHT));
+    this->AddDevice(std::make_shared<ControllerDevice>("Example_ControllerDevice_Left",  ControllerDevice::Handedness::LEFT,  config));
+    this->AddDevice(std::make_shared<ControllerDevice>("Example_ControllerDevice_Right", ControllerDevice::Handedness::RIGHT, config));
 
     // Add a tracker
     this->AddDevice(std::make_shared<TrackerDevice>("Example_TrackerDevice"));

@@ -6,12 +6,13 @@
 #include <linalg.h>
 
 #include <Driver/IVRDevice.hpp>
+#include <Driver/InputConfig.hpp>
 #include <Native/DriverFactory.hpp>
 
 namespace ExampleDriver {
     class HMDDevice : public IVRDevice, public vr::IVRDisplayComponent {
         public:
-            HMDDevice(std::string serial);
+            HMDDevice(std::string serial, InputConfig config = InputConfig::Defaults());
             ~HMDDevice() = default;
 
             // Inherited via IVRDevice
@@ -38,6 +39,7 @@ namespace ExampleDriver {
     private:
         vr::TrackedDeviceIndex_t device_index_ = vr::k_unTrackedDeviceIndexInvalid;
         std::string serial_;
+        InputConfig config_;
 
         vr::DriverPose_t last_pose_ = IVRDevice::MakeDefaultPose();
 

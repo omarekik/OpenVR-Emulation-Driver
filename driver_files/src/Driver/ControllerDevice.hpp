@@ -6,6 +6,7 @@
 #include <linalg.h>
 
 #include <Driver/IVRDevice.hpp>
+#include <Driver/InputConfig.hpp>
 #include <Native/DriverFactory.hpp>
 
 namespace ExampleDriver {
@@ -18,7 +19,8 @@ namespace ExampleDriver {
                 ANY
             };
 
-            ControllerDevice(std::string serial, Handedness handedness = Handedness::ANY);
+            ControllerDevice(std::string serial, Handedness handedness = Handedness::ANY,
+                             InputConfig config = InputConfig::Defaults());
             ~ControllerDevice() = default;
 
             // Inherited via IVRDevice
@@ -40,16 +42,19 @@ namespace ExampleDriver {
         vr::TrackedDeviceIndex_t device_index_ = vr::k_unTrackedDeviceIndexInvalid;
         std::string serial_;
         Handedness handedness_;
+        InputConfig config_;
 
         vr::DriverPose_t last_pose_;
 
         bool did_vibrate_ = false;
         float vibrate_anim_state_ = 0.f;
-        float aim_yaw_ = 0.f;
-        float aim_pitch_ = 0.f;
+
+        // Accumulated pose offset for the right controller (adjusted via d-pad / X / Y)
+        float pose_adjust_x_ = 0.f;
+        float pose_adjust_y_ = 0.f;
+        float pose_adjust_z_ = 0.f;
 
         bool joystick_enabled_ = false;
-        bool joystick_toggle_was_pressed_ = false;
 
         vr::VRInputComponentHandle_t haptic_component_ = 0;
 

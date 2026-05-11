@@ -39,6 +39,11 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/driver_files/src" PREFIX "Header 
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/driver_files/src" PREFIX "Source Files" FILES ${SOURCES})
 set_property(TARGET "${EXAMPLE_PROJECT}" PROPERTY CXX_STANDARD 17)
 
+# Set the Visual Studio debugger command so F5 launches SteamVR directly
+set_target_properties("${EXAMPLE_PROJECT}" PROPERTIES
+    VS_DEBUGGER_COMMAND "C:/Program Files (x86)/Steam/steamapps/common/SteamVR/bin/win64/vrstartup.exe"
+)
+
 # Copy driver assets to output folder
 add_custom_command(
     TARGET ${EXAMPLE_PROJECT}

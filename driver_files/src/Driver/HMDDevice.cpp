@@ -5,8 +5,6 @@
 
 namespace {
     constexpr DWORD kXInputControllerIndex = 0;
-    constexpr float kXInputLookSpeed = 1.5f;
-    constexpr float kAimModeThreshold = 0.2f;
     constexpr float kSecondsFromVsyncToPhotons = 0.011f;
 
     float NormalizeThumbAxis(SHORT value, SHORT deadzone)
@@ -33,7 +31,8 @@ namespace {
 
 }
 
-ExampleDriver::HMDDevice::HMDDevice(std::string serial):serial_(serial)
+ExampleDriver::HMDDevice::HMDDevice(std::string serial, InputConfig config)
+    : serial_(serial), config_(std::move(config))
 {
 }
 
@@ -51,9 +50,9 @@ void ExampleDriver::HMDDevice::Update()
     auto pose = IVRDevice::MakeDefaultPose();
 
     float delta_seconds = GetDriver()->GetLastFrameTime().count() / 1000.0f;
-    constexpr float mouse_sensitivity = 0.003f;
+    const auto& hmd_cfg = config_.hmd;
 
-    bool space_down = (GetAsyncKeyState(VK_SPACE) & 0x8000) != 0;
+    bool space_down = (GetAsyncKeyState(hmd_cfg.key_mouse_toggle) & 0x8000) != 0;
     if (space_down && !this->space_was_down_) {
         this->mouse_emulation_enabled_ = !this->mouse_emulation_enabled_;
         GetDriver()->Log(std::string("Mouse emulation ") + (this->mouse_emulation_enabled_ ? "enabled" : "disabled"));
@@ -64,8 +63,8 @@ void ExampleDriver::HMDDevice::Update()
     POINT current_mouse_pos;
     if (GetCursorPos(&current_mouse_pos)) {
         if (this->mouse_emulation_enabled_ && this->mouse_pos_valid_) {
-            this->rot_y_ -= (current_mouse_pos.x - this->last_mouse_x_) * mouse_sensitivity;
-            this->rot_x_ -= (current_mouse_pos.y - this->last_mouse_y_) * mouse_sensitivity;
+            this->rot_y_ -= (current_mouse_pos.x - this->last_mouse_x_) * hmd_cfg.mouse_sensitivity;
+            this->rot_x_ -= (current_mouse_pos.y - this->last_mouse_y_) * hmd_cfg.mouse_sensitivity;
         }
         this->last_mouse_x_ = current_mouse_pos.x;
         this->last_mouse_y_ = current_mouse_pos.y;
@@ -74,20 +73,18 @@ void ExampleDriver::HMDDevice::Update()
 
     XINPUT_STATE xinput_state = {};
     bool has_xinput = XInputGetState(kXInputControllerIndex, &xinput_state) == ERROR_SUCCESS;
-    bool aim_mode_active = has_xinput && NormalizeTrigger(xinput_state.Gamepad.bLeftTrigger) > kAimModeThreshold;
-    if (has_xinput && !aim_mode_active) {
-        this->rot_y_ -= NormalizeThumbAxis(xinput_state.Gamepad.sThumbRX, XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE) * kXInputLookSpeed * delta_seconds;
-        this->rot_x_ += NormalizeThumbAxis(xinput_state.Gamepad.sThumbRY, XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE) * kXInputLookSpeed * delta_seconds;
+
+    // Left stick → HMD look (yaw / pitch)
+    if (has_xinput) {
+        this->rot_y_ -= NormalizeThumbAxis(xinput_state.Gamepad.sThumbLX, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE) * hmd_cfg.look_speed * delta_seconds;
+        this->rot_x_ += NormalizeThumbAxis(xinput_state.Gamepad.sThumbLY, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE) * hmd_cfg.look_speed * delta_seconds;
     }
-    this->rot_y_ += (1.0f * (GetAsyncKeyState(VK_RIGHT) == 0) - 1.0f * (GetAsyncKeyState(VK_LEFT) == 0)) * delta_seconds;
-    this->rot_x_ += (-1.0f * (GetAsyncKeyState(VK_UP) == 0) + 1.0f * (GetAsyncKeyState(VK_DOWN) == 0)) * delta_seconds;
+
     this->rot_x_ = std::fmax(this->rot_x_, -3.14159f/2);
-    this->rot_x_ = std::fmin(this->rot_x_, 3.14159f/2);
+    this->rot_x_ = std::fmin(this->rot_x_,  3.14159f/2);
 
     linalg::vec<float, 4> y_quat{ 0, std::sinf(this->rot_y_ / 2), 0, std::cosf(this->rot_y_ / 2) };
-
     linalg::vec<float, 4> x_quat{ std::sinf(this->rot_x_ / 2), 0, 0, std::cosf(this->rot_x_ / 2) };
-
     linalg::vec<float, 4> pose_rot = linalg::qmul(y_quat, x_quat);
 
     pose.qRotation.w = (float) pose_rot.w;
@@ -95,41 +92,18 @@ void ExampleDriver::HMDDevice::Update()
     pose.qRotation.y = (float) pose_rot.y;
     pose.qRotation.z = (float) pose_rot.z;
 
-    // Update position based on rotation
-    linalg::vec<float, 3> forward_vec{-1.0f * (GetAsyncKeyState(0x44) == 0) + 1.0f * (GetAsyncKeyState(0x41) == 0), 0, 0};
-    linalg::vec<float, 3> right_vec{0, 0, 1.0f * (GetAsyncKeyState(0x57) == 0) - 1.0f * (GetAsyncKeyState(0x53) == 0) };
-
-    bool left_stick_vr_joystick_enabled = false;
-    for (const auto& device : GetDriver()->GetDevices()) {
-        if (device->GetDeviceType() != DeviceType::CONTROLLER) {
-            continue;
-        }
-
-        auto controller = static_cast<ControllerDevice*>(device.get());
-        if (controller->GetHandedness() == ControllerDevice::Handedness::LEFT) {
-            left_stick_vr_joystick_enabled = controller->IsJoystickEnabled();
-            break;
-        }
-    }
-
-    if (has_xinput && !left_stick_vr_joystick_enabled) {
-        forward_vec.x += NormalizeThumbAxis(xinput_state.Gamepad.sThumbLX, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
-        right_vec.z -= NormalizeThumbAxis(xinput_state.Gamepad.sThumbLY, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
-    }
+    // Left trigger alone → move forward; left trigger + LB → move backward
     if (has_xinput) {
-        forward_vec.x += (xinput_state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_RIGHT) ? 1.0f : 0.0f;
-        forward_vec.x -= (xinput_state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_LEFT) ? 1.0f : 0.0f;
-        right_vec.z -= (xinput_state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_UP) ? 1.0f : 0.0f;
-        right_vec.z += (xinput_state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_DOWN) ? 1.0f : 0.0f;
-    }
-
-    linalg::vec<float, 3> final_dir = forward_vec + right_vec;
-    if (linalg::length(final_dir) > 0.01) {
-        final_dir = linalg::normalize(final_dir) * std::fmin(linalg::length(final_dir), 1.0f) * (float)delta_seconds;
-        final_dir = linalg::qrot(pose_rot, final_dir);
-        this->pos_x_ += final_dir.x;
-        this->pos_y_ += final_dir.y;
-        this->pos_z_ += final_dir.z;
+        float lt_value = NormalizeTrigger(xinput_state.Gamepad.bLeftTrigger);
+        if (lt_value > 0.0f) {
+            bool lb_pressed = (xinput_state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER) != 0;
+            float sign = lb_pressed ? 1.0f : -1.0f;
+            linalg::vec<float, 3> move_dir{0, 0, sign * lt_value * hmd_cfg.move_speed * delta_seconds};
+            move_dir = linalg::qrot(pose_rot, move_dir);
+            this->pos_x_ += move_dir.x;
+            this->pos_y_ += move_dir.y;
+            this->pos_z_ += move_dir.z;
+        }
     }
 
     pose.vecPosition[0] = (float) this->pos_x_;
