@@ -2,6 +2,7 @@
 #include "ControllerDevice.hpp"
 #include <Windows.h>
 #include <Xinput.h>
+#include <numbers>
 
 namespace {
     constexpr DWORD kXInputControllerIndex = 0;
@@ -80,8 +81,8 @@ void ExampleDriver::HMDDevice::Update()
         this->rot_x_ += NormalizeThumbAxis(xinput_state.Gamepad.sThumbLY, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE) * hmd_cfg.look_speed * delta_seconds;
     }
 
-    this->rot_x_ = std::fmax(this->rot_x_, -3.14159f/2);
-    this->rot_x_ = std::fmin(this->rot_x_,  3.14159f/2);
+    this->rot_x_ = std::fmax(this->rot_x_, -std::numbers::pi_v<float> / 2);
+    this->rot_x_ = std::fmin(this->rot_x_,  std::numbers::pi_v<float> / 2);
 
     linalg::vec<float, 4> y_quat{ 0, std::sinf(this->rot_y_ / 2), 0, std::cosf(this->rot_y_ / 2) };
     linalg::vec<float, 4> x_quat{ std::sinf(this->rot_x_ / 2), 0, 0, std::cosf(this->rot_x_ / 2) };
@@ -227,7 +228,7 @@ void* ExampleDriver::HMDDevice::GetComponent(const char* pchComponentNameAndVers
     return nullptr;
 }
 
-void ExampleDriver::HMDDevice::DebugRequest(const char* pchRequest, char* pchResponseBuffer, uint32_t unResponseBufferSize)
+void ExampleDriver::HMDDevice::DebugRequest(const char* /*pchRequest*/, char* pchResponseBuffer, uint32_t unResponseBufferSize)
 {
     if (unResponseBufferSize >= 1)
         pchResponseBuffer[0] = 0;
@@ -278,7 +279,7 @@ void ExampleDriver::HMDDevice::GetEyeOutputViewport(vr::EVREye eEye, uint32_t* p
     }
 }
 
-void ExampleDriver::HMDDevice::GetProjectionRaw(vr::EVREye eEye, float* pfLeft, float* pfRight, float* pfTop, float* pfBottom)
+void ExampleDriver::HMDDevice::GetProjectionRaw(vr::EVREye /*eEye*/, float* pfLeft, float* pfRight, float* pfTop, float* pfBottom)
 {
     const float eye_aspect = static_cast<float>(this->window_width_ / 2) / static_cast<float>(this->window_height_);
 
@@ -288,7 +289,7 @@ void ExampleDriver::HMDDevice::GetProjectionRaw(vr::EVREye eEye, float* pfLeft, 
     *pfBottom = 1;
 }
 
-vr::DistortionCoordinates_t ExampleDriver::HMDDevice::ComputeDistortion(vr::EVREye eEye, float fU, float fV)
+vr::DistortionCoordinates_t ExampleDriver::HMDDevice::ComputeDistortion(vr::EVREye /*eEye*/, float fU, float fV)
 {
     vr::DistortionCoordinates_t coordinates;
     coordinates.rfBlue[0] = fU;

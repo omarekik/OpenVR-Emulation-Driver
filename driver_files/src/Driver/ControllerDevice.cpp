@@ -2,8 +2,6 @@
 #include <Windows.h>
 #include <Xinput.h>
 
-#pragma comment(lib, "xinput.lib")
-
 namespace {
     constexpr DWORD kXInputControllerIndex = 0;
     constexpr float kMinHapticDurationSeconds = 0.02f;
@@ -89,6 +87,9 @@ ExampleDriver::ControllerDevice::ControllerDevice(std::string serial, Controller
 {
 }
 
+bool ExampleDriver::ControllerDevice::s_swapped_         = false;
+bool ExampleDriver::ControllerDevice::s_back_was_pressed_ = false;
+
 std::string ExampleDriver::ControllerDevice::GetSerial()
 {
     return this->serial_;
@@ -109,10 +110,11 @@ void ExampleDriver::ControllerDevice::Update()
         if (event.eventType == vr::EVREventType::VREvent_Input_HapticVibration) {
             if (event.data.hapticVibration.componentHandle == this->haptic_component_) {
                 this->did_vibrate_ = true;
-                if (this->handedness_ == Handedness::LEFT) {
+                // Route rumble based on effective (possibly swapped) handedness.
+                bool effective_left = s_swapped_ ? (this->handedness_ == Handedness::RIGHT) : (this->handedness_ == Handedness::LEFT);
+                if (effective_left) {
                     QueueXInputRumble(true, event.data.hapticVibration.fAmplitude, event.data.hapticVibration.fDurationSeconds);
-                }
-                else if (this->handedness_ == Handedness::RIGHT) {
+                } else {
                     QueueXInputRumble(false, event.data.hapticVibration.fAmplitude, event.data.hapticVibration.fDurationSeconds);
                 }
             }
@@ -133,8 +135,20 @@ void ExampleDriver::ControllerDevice::Update()
     auto pose = IVRDevice::MakeDefaultPose();
     XINPUT_STATE xinput_state = {};
     bool has_xinput = XInputGetState(kXInputControllerIndex, &xinput_state) == ERROR_SUCCESS;
-    bool is_left_controller = this->handedness_ == Handedness::LEFT;
-    bool is_right_controller = this->handedness_ == Handedness::RIGHT;
+
+    // Back button (either controller sees it) toggles left/right input swap.
+    bool back_now = has_xinput && (xinput_state.Gamepad.wButtons & XINPUT_GAMEPAD_BACK) != 0;
+    if (this->handedness_ == Handedness::LEFT) { // only one controller drives the toggle
+        if (back_now && !s_back_was_pressed_) {
+            s_swapped_ = !s_swapped_;
+            GetDriver()->Log(std::string("Controller mapping ") + (s_swapped_ ? "swapped" : "restored"));
+        }
+        s_back_was_pressed_ = back_now;
+    }
+
+    // Effective handedness: swap input reading when s_swapped_ is active.
+    bool is_left_controller  = s_swapped_ ? (this->handedness_ == Handedness::RIGHT) : (this->handedness_ == Handedness::LEFT);
+    bool is_right_controller = s_swapped_ ? (this->handedness_ == Handedness::LEFT)  : (this->handedness_ == Handedness::RIGHT);
 
     const auto& lc = config_.left_controller;
     const auto& rc = config_.right_controller;
@@ -230,7 +244,7 @@ void ExampleDriver::ControllerDevice::Update()
     // Right controller: right trigger, RB, right stick (always joystick), START, RIGHT_THUMB.
     if (has_xinput) {
         if (is_left_controller) {
-            system_pressed = gamepad_button_pressed(lc.btn_system);
+            // BACK is consumed as the swap toggle; left controller has no system button.
             joystick_click = gamepad_button_pressed(lc.btn_joystick_click);
         }
         else if (is_right_controller) {
@@ -386,12 +400,12 @@ void ExampleDriver::ControllerDevice::EnterStandby()
 {
 }
 
-void* ExampleDriver::ControllerDevice::GetComponent(const char* pchComponentNameAndVersion)
+void* ExampleDriver::ControllerDevice::GetComponent(const char* /*pchComponentNameAndVersion*/)
 {
     return nullptr;
 }
 
-void ExampleDriver::ControllerDevice::DebugRequest(const char* pchRequest, char* pchResponseBuffer, uint32_t unResponseBufferSize)
+void ExampleDriver::ControllerDevice::DebugRequest(const char* /*pchRequest*/, char* pchResponseBuffer, uint32_t unResponseBufferSize)
 {
     if (unResponseBufferSize >= 1)
         pchResponseBuffer[0] = 0;

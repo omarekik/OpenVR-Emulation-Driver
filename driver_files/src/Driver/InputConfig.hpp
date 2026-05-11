@@ -18,8 +18,8 @@ namespace ExampleDriver {
     // Note: LT, LB, left stick and gamepad X/Y are consumed by the HMD and
     // right-controller pose respectively and are not mapped as VR inputs.
     struct LeftControllerConfig {
-        WORD btn_system         = XINPUT_GAMEPAD_BACK;
         WORD btn_joystick_click = XINPUT_GAMEPAD_LEFT_THUMB;
+        // Note: BACK is reserved as the controller-swap toggle and cannot be remapped.
     };
 
     // Configuration for the right controller input mapping.

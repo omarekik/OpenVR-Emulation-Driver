@@ -1,12 +1,13 @@
 #include "TrackingReferenceDevice.hpp"
 #include <Windows.h>
+#include <numbers>
 
 ExampleDriver::TrackingReferenceDevice::TrackingReferenceDevice(std::string serial):
     serial_(serial)
 {
 
     // Get some random angle to place this tracking reference at in the scene
-    this->random_angle_rad_ = fmod(rand() / 10000.f, 2 * 3.14159f);
+    this->random_angle_rad_ = fmod(rand() / 10000.f, 2 * std::numbers::pi_v<float>);
 }
 
 std::string ExampleDriver::TrackingReferenceDevice::GetSerial()
@@ -98,12 +99,12 @@ void ExampleDriver::TrackingReferenceDevice::EnterStandby()
 {
 }
 
-void* ExampleDriver::TrackingReferenceDevice::GetComponent(const char* pchComponentNameAndVersion)
+void* ExampleDriver::TrackingReferenceDevice::GetComponent(const char* /*pchComponentNameAndVersion*/)
 {
     return nullptr;
 }
 
-void ExampleDriver::TrackingReferenceDevice::DebugRequest(const char* pchRequest, char* pchResponseBuffer, uint32_t unResponseBufferSize)
+void ExampleDriver::TrackingReferenceDevice::DebugRequest(const char* /*pchRequest*/, char* pchResponseBuffer, uint32_t unResponseBufferSize)
 {
     if (unResponseBufferSize >= 1)
         pchResponseBuffer[0] = 0;

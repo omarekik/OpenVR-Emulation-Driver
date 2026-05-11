@@ -14,25 +14,25 @@ namespace ExampleDriver {
 
 
         // Inherited via IVRDriver
-        virtual std::vector<std::shared_ptr<IVRDevice>> GetDevices() override;
-        virtual std::vector<vr::VREvent_t> GetOpenVREvents() override;
-        virtual std::chrono::milliseconds GetLastFrameTime() override;
-        virtual bool AddDevice(std::shared_ptr<IVRDevice> device) override;
-        virtual SettingsValue GetSettingsValue(std::string key) override;
-        virtual void Log(std::string message) override;
+        std::vector<std::shared_ptr<IVRDevice>> GetDevices() override;
+        std::vector<vr::VREvent_t> GetOpenVREvents() override;
+        std::chrono::milliseconds GetLastFrameTime() override;
+        bool AddDevice(std::shared_ptr<IVRDevice> device) override;
+        SettingsValue GetSettingsValue(std::string key) override;
+        void Log(std::string message) override;
 
-        virtual vr::IVRDriverInput* GetInput() override;
-        virtual vr::CVRPropertyHelpers* GetProperties() override;
-        virtual vr::IVRServerDriverHost* GetDriverHost() override;
+        vr::IVRDriverInput* GetInput() override;
+        vr::CVRPropertyHelpers* GetProperties() override;
+        vr::IVRServerDriverHost* GetDriverHost() override;
 
         // Inherited via IServerTrackedDeviceProvider
-        virtual vr::EVRInitError Init(vr::IVRDriverContext* pDriverContext) override;
-        virtual void Cleanup() override;
-        virtual void RunFrame() override;
-        virtual bool ShouldBlockStandbyMode() override;
-        virtual void EnterStandby() override;
-        virtual void LeaveStandby() override;
-        virtual ~VRDriver() = default;
+        vr::EVRInitError Init(vr::IVRDriverContext* pDriverContext) override;
+        void Cleanup() override;
+        void RunFrame() override;
+        bool ShouldBlockStandbyMode() override;
+        void EnterStandby() override;
+        void LeaveStandby() override;
+        ~VRDriver() = default;
 
     private:
         std::vector<std::shared_ptr<IVRDevice>> devices_;

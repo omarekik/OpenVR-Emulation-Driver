@@ -139,12 +139,12 @@ void ExampleDriver::TrackerDevice::EnterStandby()
 {
 }
 
-void* ExampleDriver::TrackerDevice::GetComponent(const char* pchComponentNameAndVersion)
+void* ExampleDriver::TrackerDevice::GetComponent(const char* /*pchComponentNameAndVersion*/)
 {
     return nullptr;
 }
 
-void ExampleDriver::TrackerDevice::DebugRequest(const char* pchRequest, char* pchResponseBuffer, uint32_t unResponseBufferSize)
+void ExampleDriver::TrackerDevice::DebugRequest(const char* /*pchRequest*/, char* pchResponseBuffer, uint32_t unResponseBufferSize)
 {
     if (unResponseBufferSize >= 1)
         pchResponseBuffer[0] = 0;

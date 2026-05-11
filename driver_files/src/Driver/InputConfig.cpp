@@ -18,20 +18,20 @@ namespace {
 WORD XInputButtonFromName(const std::string& name)
 {
     static const std::unordered_map<std::string, WORD> kTable = {
-        { "DPAD_UP",        XINPUT_GAMEPAD_DPAD_UP        },
-        { "DPAD_DOWN",      XINPUT_GAMEPAD_DPAD_DOWN      },
-        { "DPAD_LEFT",      XINPUT_GAMEPAD_DPAD_LEFT      },
-        { "DPAD_RIGHT",     XINPUT_GAMEPAD_DPAD_RIGHT     },
-        { "START",          XINPUT_GAMEPAD_START          },
-        { "BACK",           XINPUT_GAMEPAD_BACK           },
-        { "LEFT_THUMB",     XINPUT_GAMEPAD_LEFT_THUMB     },
-        { "RIGHT_THUMB",    XINPUT_GAMEPAD_RIGHT_THUMB    },
-        { "LEFT_SHOULDER",  XINPUT_GAMEPAD_LEFT_SHOULDER  },
-        { "RIGHT_SHOULDER", XINPUT_GAMEPAD_RIGHT_SHOULDER },
-        { "A",              XINPUT_GAMEPAD_A              },
-        { "B",              XINPUT_GAMEPAD_B              },
-        { "X",              XINPUT_GAMEPAD_X              },
-        { "Y",              XINPUT_GAMEPAD_Y              },
+        { "DPAD_UP",        static_cast<WORD>(XINPUT_GAMEPAD_DPAD_UP)        },
+        { "DPAD_DOWN",      static_cast<WORD>(XINPUT_GAMEPAD_DPAD_DOWN)      },
+        { "DPAD_LEFT",      static_cast<WORD>(XINPUT_GAMEPAD_DPAD_LEFT)      },
+        { "DPAD_RIGHT",     static_cast<WORD>(XINPUT_GAMEPAD_DPAD_RIGHT)     },
+        { "START",          static_cast<WORD>(XINPUT_GAMEPAD_START)          },
+        { "BACK",           static_cast<WORD>(XINPUT_GAMEPAD_BACK)           },
+        { "LEFT_THUMB",     static_cast<WORD>(XINPUT_GAMEPAD_LEFT_THUMB)     },
+        { "RIGHT_THUMB",    static_cast<WORD>(XINPUT_GAMEPAD_RIGHT_THUMB)    },
+        { "LEFT_SHOULDER",  static_cast<WORD>(XINPUT_GAMEPAD_LEFT_SHOULDER)  },
+        { "RIGHT_SHOULDER", static_cast<WORD>(XINPUT_GAMEPAD_RIGHT_SHOULDER) },
+        { "A",              static_cast<WORD>(XINPUT_GAMEPAD_A)              },
+        { "B",              static_cast<WORD>(XINPUT_GAMEPAD_B)              },
+        { "X",              static_cast<WORD>(XINPUT_GAMEPAD_X)              },
+        { "Y",              static_cast<WORD>(XINPUT_GAMEPAD_Y)              },
     };
     auto it = kTable.find(name);
     return it != kTable.end() ? it->second : 0;
@@ -206,7 +206,6 @@ InputConfig InputConfig::LoadFromFile(const std::string& path)
     // ------------------------------------------------------------------
     auto lc = [&](const std::string& k) { return Get("left_controller", k); };
 
-    if (!lc("btn_system").empty())         cfg.left_controller.btn_system         = ParseXInputCombo(lc("btn_system"));
     if (!lc("btn_joystick_click").empty()) cfg.left_controller.btn_joystick_click = ParseXInputCombo(lc("btn_joystick_click"));
 
     // ------------------------------------------------------------------

@@ -26,11 +26,21 @@ cd OpenVR-Emulation-Driver
 cmake -B build
 ```
 
-Open `build/Simple_SteamVR_Driver_Tutorial.sln` in Visual Studio and build. The `example` driver folder is copied to the build output automatically.
+Open `build/Simple_SteamVR_Driver_Tutorial.sln` in Visual Studio and build.
+
+- Driver assets are copied to the build output automatically (pre-build step).
+- The built DLL is copied into `build/Debug/example/bin/win64/` automatically (post-build step).
+- **The built `example` folder is automatically deployed to SteamVR's drivers directory** (post-build step — requires the build to run as Administrator).
 
 ## Installation
 
-Choose one of two methods:
+> **If you build with Visual Studio (or `cmake --build`) running as Administrator**, the post-build step deploys the driver automatically to:
+> ```
+> C:\Program Files (x86)\Steam\steamapps\common\SteamVR\drivers\example
+> ```
+> No manual installation is needed.
+
+If you prefer not to run as Administrator, choose one of the manual methods below:
 
 **Option A — copy into SteamVR drivers:**
 Copy the built `example` folder into:
@@ -82,14 +92,16 @@ All mappings are configurable in [`resources/input_mapping.ini`](driver_files/dr
 
 | Input | Action |
 |---|---|
-| Back | System button |
+| **Back** | **Swap left/right controller input mapping** (press again to restore) |
 | Left stick click | Joystick click |
 
 > Left trigger, LB, left stick, and gamepad X/Y are consumed by HMD movement and right-controller pose adjustment and are not forwarded as left VR controller inputs.
+>
+> The `Back` button swap is a runtime toggle — no restart needed. Haptic rumble routing also follows the swap (left motor tracks the effective left controller).
 
 ### Haptics
 
-OpenVR haptic events are forwarded to XInput rumble (left motor = left controller, right motor = right controller).
+OpenVR haptic events are forwarded to XInput rumble (left motor = left controller, right motor = right controller). Routing respects the Back-button swap.
 
 ## Input Mapping Configuration
 
@@ -191,6 +203,22 @@ Set the program the project should run in debug mode to **vrstartup** (Usually l
 
 ## Issues
 I don't have an issue template, but if you find what you think is a bug, and can describe how to reproduce it, please leave an issue and/or pull request with the details.
+
+## Versioning
+
+This project follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`):
+
+| Increment | When |
+|---|---|
+| `PATCH` | Bug fixes, warning cleanup, documentation updates |
+| `MINOR` | New features, new INI config keys, new device support — backward compatible |
+| `MAJOR` | Breaking changes to the INI format, device serial scheme, or build system |
+
+Releases are tagged on the `main` branch (e.g. `v1.2.0`). Development happens on feature branches and is merged via pull request.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide — workflow, commit conventions, code style, CMake guidelines, and testing steps.
 
 ## License
 MIT License
