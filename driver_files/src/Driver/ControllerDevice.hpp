@@ -3,13 +3,11 @@
 #include <chrono>
 #include <cmath>
 
-#include <linalg.h>
-
 #include <Driver/IVRDevice.hpp>
 #include <Driver/InputConfig.hpp>
 #include <Native/DriverFactory.hpp>
 
-namespace ExampleDriver {
+namespace OpenVREmulatorDriver {
     class ControllerDevice : public IVRDevice {
         public:
 
@@ -99,4 +97,4 @@ namespace ExampleDriver {
         //vr::VRInputComponentHandle_t skeleton_left_component_ = 0;
         //vr::VRInputComponentHandle_t skeleton_right_component_ = 0;
     };
-};
+}; // namespace OpenVREmulatorDriver

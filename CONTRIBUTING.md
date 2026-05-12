@@ -21,12 +21,16 @@ Thank you for your interest in contributing! This guide covers everything you ne
    git clone --recursive https://github.com/<your-username>/OpenVR-Emulation-Driver.git
    cd OpenVR-Emulation-Driver
    ```
-2. Configure and open the Visual Studio solution:
-   ```sh
-   cmake -B build
-   .\build\Simple_SteamVR_Driver_Tutorial.sln
+2. **Bootstrap** (creates `.venv`, installs Conan, fetches dependencies, configures CMake):
+   ```powershell
+   .\scripts\bootstrap.ps1
    ```
-3. Build the `driver_example` project. The output driver is automatically deployed to SteamVR's drivers folder (requires running Visual Studio as Administrator).
+   Re-run whenever `conanfile.py` changes. Add `-Release` to also configure the Release preset.
+3. **Open** the Visual Studio solution and build:
+   ```
+   build\OpenVR_Emulation_Driver.sln
+   ```
+4. Build the `driver_example` project. The output driver is automatically deployed to SteamVR's drivers folder (requires running Visual Studio as Administrator).
 
 ---
 

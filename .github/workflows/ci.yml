@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+    branches: [master]
+
+jobs:
+  build:
+    name: Build & Test (${{ matrix.config }} / Windows / MSVC)
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [Debug, Release]
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install Conan
+        run: pip install conan
+
+      - name: Conan install
+        shell: pwsh
+        run: |
+          $env:CONAN_HOME = "${{ github.workspace }}\.conan2"
+          conan profile detect --force
+          conan install . --build=never -s compiler.cppstd=17
+
+      - name: CMake configure
+        shell: pwsh
+        run: cmake --preset windows-msvc-${{ matrix.config == 'Debug' && 'debug' || 'release' }}
+
+      - name: CMake build driver
+        shell: pwsh
+        # SteamVR deploy post-build step is skipped (no SteamVR on the runner).
+        run: cmake --build build --config ${{ matrix.config }} --target driver_openvr-emulator
+
+      - name: CMake build tests
+        shell: pwsh
+        # ConanCenter pre-built gtest binaries are Release-only (MD_DynamicRelease).
+        # Always build tests in Release to avoid LNK2038 CRT mismatch.
+        run: cmake --build build --config Release --target driver_tests
+
+      - name: Run tests
+        shell: pwsh
+        run: ctest --test-dir build --build-config Release --output-on-failure

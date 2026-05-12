@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <Windows.h>
 
-namespace ExampleDriver {
+namespace OpenVREmulatorDriver {
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -228,4 +228,4 @@ InputConfig InputConfig::LoadFromFile(const std::string& path)
     return cfg;
 }
 
-} // namespace ExampleDriver
+} // namespace OpenVREmulatorDriver

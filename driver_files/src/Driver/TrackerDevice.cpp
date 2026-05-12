@@ -1,17 +1,22 @@
 #include "TrackerDevice.hpp"
+#include "InputMath.hpp"
 #include <Windows.h>
 
-ExampleDriver::TrackerDevice::TrackerDevice(std::string serial):
+using namespace DirectX;
+
+namespace OpenVREmulatorDriver {
+
+TrackerDevice::TrackerDevice(std::string serial):
     serial_(serial)
 {
 }
 
-std::string ExampleDriver::TrackerDevice::GetSerial()
+std::string TrackerDevice::GetSerial()
 {
     return this->serial_;
 }
 
-void ExampleDriver::TrackerDevice::Update()
+void TrackerDevice::Update()
 {
     if (this->device_index_ == vr::k_unTrackedDeviceIndexInvalid)
         return;
@@ -49,21 +54,19 @@ void ExampleDriver::TrackerDevice::Update()
         vr::DriverPose_t hmd_pose = (*hmd)->GetPose();
 
         // Here we setup some transforms so our controllers are offset from the headset by a small amount so we can see them
-        linalg::vec<float, 3> hmd_position{ (float)hmd_pose.vecPosition[0], (float)hmd_pose.vecPosition[1], (float)hmd_pose.vecPosition[2] };
-        linalg::vec<float, 4> hmd_rotation{ (float)hmd_pose.qRotation.x, (float)hmd_pose.qRotation.y, (float)hmd_pose.qRotation.z, (float)hmd_pose.qRotation.w };
+        XMFLOAT3 hmd_position{ static_cast<float>(hmd_pose.vecPosition[0]), static_cast<float>(hmd_pose.vecPosition[1]), static_cast<float>(hmd_pose.vecPosition[2]) };
+        XMFLOAT4 hmd_rotation{ static_cast<float>(hmd_pose.qRotation.x), static_cast<float>(hmd_pose.qRotation.y), static_cast<float>(hmd_pose.qRotation.z), static_cast<float>(hmd_pose.qRotation.w) };
 
         // Do shaking animation if haptic vibration was requested
         float controller_y = -0.35f + 0.01f * std::sinf(8 * 3.1415f * vibrate_anim_state_);
 
-        linalg::vec<float, 3> hmd_pose_offset = { 0.f, controller_y, -0.5f };
+        XMFLOAT3 hmd_pose_offset{ 0.f, controller_y, -0.5f };
+        XMFLOAT3 rotated_offset;
+        XMStoreFloat3(&rotated_offset, XMVector3Rotate(XMLoadFloat3(&hmd_pose_offset), XMLoadFloat4(&hmd_rotation)));
 
-        hmd_pose_offset = linalg::qrot(hmd_rotation, hmd_pose_offset);
-
-        linalg::vec<float, 3> final_pose = hmd_pose_offset + hmd_position;
-
-        pose.vecPosition[0] = final_pose.x;
-        pose.vecPosition[1] = final_pose.y;
-        pose.vecPosition[2] = final_pose.z;
+        pose.vecPosition[0] = rotated_offset.x + hmd_position.x;
+        pose.vecPosition[1] = rotated_offset.y + hmd_position.y;
+        pose.vecPosition[2] = rotated_offset.z + hmd_position.z;
 
         pose.qRotation.w = hmd_rotation.w;
         pose.qRotation.x = hmd_rotation.x;
@@ -76,17 +79,17 @@ void ExampleDriver::TrackerDevice::Update()
     this->last_pose_ = pose;
 }
 
-DeviceType ExampleDriver::TrackerDevice::GetDeviceType()
+DeviceType TrackerDevice::GetDeviceType()
 {
     return DeviceType::TRACKER;
 }
 
-vr::TrackedDeviceIndex_t ExampleDriver::TrackerDevice::GetDeviceIndex()
+vr::TrackedDeviceIndex_t TrackerDevice::GetDeviceIndex()
 {
     return this->device_index_;
 }
 
-vr::EVRInitError ExampleDriver::TrackerDevice::Activate(uint32_t unObjectId)
+vr::EVRInitError TrackerDevice::Activate(uint32_t unObjectId)
 {
     this->device_index_ = unObjectId;
 
@@ -105,7 +108,7 @@ vr::EVRInitError ExampleDriver::TrackerDevice::Activate(uint32_t unObjectId)
     GetDriver()->GetProperties()->SetUint64Property(props, vr::Prop_CurrentUniverseId_Uint64, 2);
     
     // Set up a model "number" (not needed but good to have)
-    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_ModelNumber_String, "example_tracker");
+    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_ModelNumber_String, "openvr-emulator_tracker");
 
     // Opt out of hand selection
     GetDriver()->GetProperties()->SetInt32Property(props, vr::Prop_ControllerRoleHint_Int32, vr::ETrackedControllerRole::TrackedControllerRole_OptOut);
@@ -114,43 +117,45 @@ vr::EVRInitError ExampleDriver::TrackerDevice::Activate(uint32_t unObjectId)
     GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_RenderModelName_String, "vr_controller_05_wireless_b");
 
     // Set controller profile
-    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_InputProfilePath_String, "{example}/input/example_tracker_bindings.json");
+    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_InputProfilePath_String, "{openvr-emulator}/input/openvr-emulator_tracker_bindings.json");
 
     // Set the icon
-    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceReady_String, "{example}/icons/tracker_ready.png");
+    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceReady_String, "{openvr-emulator}/icons/tracker_ready.png");
 
-    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceOff_String, "{example}/icons/tracker_not_ready.png");
-    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceSearching_String, "{example}/icons/tracker_not_ready.png");
-    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceSearchingAlert_String, "{example}/icons/tracker_not_ready.png");
-    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceReadyAlert_String, "{example}/icons/tracker_not_ready.png");
-    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceNotReady_String, "{example}/icons/tracker_not_ready.png");
-    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceStandby_String, "{example}/icons/tracker_not_ready.png");
-    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceAlertLow_String, "{example}/icons/tracker_not_ready.png");
+    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceOff_String, "{openvr-emulator}/icons/tracker_not_ready.png");
+    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceSearching_String, "{openvr-emulator}/icons/tracker_not_ready.png");
+    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceSearchingAlert_String, "{openvr-emulator}/icons/tracker_not_ready.png");
+    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceReadyAlert_String, "{openvr-emulator}/icons/tracker_not_ready.png");
+    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceNotReady_String, "{openvr-emulator}/icons/tracker_not_ready.png");
+    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceStandby_String, "{openvr-emulator}/icons/tracker_not_ready.png");
+    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceAlertLow_String, "{openvr-emulator}/icons/tracker_not_ready.png");
 
     return vr::EVRInitError::VRInitError_None;
 }
 
-void ExampleDriver::TrackerDevice::Deactivate()
+void TrackerDevice::Deactivate()
 {
     this->device_index_ = vr::k_unTrackedDeviceIndexInvalid;
 }
 
-void ExampleDriver::TrackerDevice::EnterStandby()
+void TrackerDevice::EnterStandby()
 {
 }
 
-void* ExampleDriver::TrackerDevice::GetComponent(const char* /*pchComponentNameAndVersion*/)
+void* TrackerDevice::GetComponent(const char* /*pchComponentNameAndVersion*/)
 {
     return nullptr;
 }
 
-void ExampleDriver::TrackerDevice::DebugRequest(const char* /*pchRequest*/, char* pchResponseBuffer, uint32_t unResponseBufferSize)
+void TrackerDevice::DebugRequest(const char* /*pchRequest*/, char* pchResponseBuffer, uint32_t unResponseBufferSize)
 {
     if (unResponseBufferSize >= 1)
         pchResponseBuffer[0] = 0;
 }
 
-vr::DriverPose_t ExampleDriver::TrackerDevice::GetPose()
+vr::DriverPose_t TrackerDevice::GetPose()
 {
     return last_pose_;
 }
+
+} // namespace OpenVREmulatorDriver

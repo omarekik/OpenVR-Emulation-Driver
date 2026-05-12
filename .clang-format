@@ -1,0 +1,115 @@
+---
+Language:        Cpp
+BasedOnStyle:    Google
+
+# Column limit — keeps diffs readable and fits two panes side-by-side
+ColumnLimit:     100
+
+# Indentation
+IndentWidth:     4
+TabWidth:        4
+UseTab:          Never
+ContinuationIndentWidth: 4
+ConstructorInitializerIndentWidth: 4
+AccessModifierOffset: -4
+
+# Brace style — keep opening braces on the same line (Attach)
+BreakBeforeBraces: Attach
+BraceWrapping:
+  AfterCaseLabel:       false
+  AfterClass:           false
+  AfterControlStatement: Never
+  AfterEnum:            false
+  AfterFunction:        false
+  AfterNamespace:       false
+  AfterStruct:          false
+  AfterUnion:           false
+  AfterExternBlock:     false
+  BeforeCatch:          false
+  BeforeElse:           false
+  BeforeLambdaBody:     false
+  BeforeWhile:          false
+  IndentBraces:         false
+  SplitEmptyFunction:   true
+  SplitEmptyRecord:     true
+  SplitEmptyNamespace:  true
+
+# Pointers and references — left-aligned: int* p, int& r
+PointerAlignment: Left
+ReferenceAlignment: Pointer
+
+# Templates
+AlwaysBreakTemplateDeclarations: Yes
+
+# Include ordering
+SortIncludes:    CaseSensitive
+IncludeBlocks:   Regroup
+IncludeCategories:
+  # Windows / system headers (<windows.h>, <d3d11.h>, etc.)
+  - Regex:           '^<.*\.h>'
+    Priority:        1
+  # C++ standard library (<vector>, <string>, etc.)
+  - Regex:           '^<.*>'
+    Priority:        2
+  # Project headers
+  - Regex:           '.*'
+    Priority:        3
+
+# Function argument / parameter packing
+BinPackArguments:  true
+BinPackParameters: true
+AllowAllArgumentsOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: true
+
+# Short forms
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortLambdasOnASingleLine:   All
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLoopsOnASingleLine:     true
+AllowShortBlocksOnASingleLine:    Never
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortEnumsOnASingleLine:     true
+
+# Breaking
+AlignAfterOpenBracket:   Align
+AlignOperands:           Align
+AlignTrailingComments:   true
+BreakBeforeBinaryOperators: None
+BreakBeforeTernaryOperators: true
+BreakConstructorInitializers: BeforeColon
+BreakInheritanceList:    BeforeColon
+PackConstructorInitializers: NextLine
+
+# Spaces
+SpaceAfterCStyleCast:           false
+SpaceAfterLogicalNot:           false
+SpaceAfterTemplateKeyword:      true
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCaseColon:           false
+SpaceBeforeCpp11BracedList:     false
+SpaceBeforeCtorInitializerColon: true
+SpaceBeforeInheritanceColon:    true
+SpaceBeforeParens:              ControlStatements
+SpaceBeforeRangeBasedForLoopColon: true
+SpaceInEmptyBlock:              false
+SpacesBeforeTrailingComments:   2
+SpacesInAngles:                 Never
+SpacesInContainerLiterals:      false
+SpacesInParentheses:            false
+SpacesInSquareBrackets:         false
+
+# Misc
+Cpp11BracedListStyle:     true
+FixNamespaceComments:     true
+MaxEmptyLinesToKeep:      1
+KeepEmptyLinesAtTheStartOfBlocks: false
+NamespaceIndentation:     None
+ReflowComments:           true
+SortUsingDeclarations:    true
+Standard:                 c++20
+EmptyLineBeforeAccessModifier: LogicalBlock
+EmptyLineAfterAccessModifier:  Never
+IndentCaseLabels:         true
+IndentPPDirectives:       None
+InsertTrailingCommas:     None
+...

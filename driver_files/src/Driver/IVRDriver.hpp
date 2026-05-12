@@ -5,7 +5,7 @@
 
 #include <Driver/IVRDevice.hpp>
 
-namespace ExampleDriver {
+namespace OpenVREmulatorDriver {
 
     typedef std::variant<std::monostate, std::string, int, float, bool> SettingsValue;
 
@@ -75,5 +75,5 @@ namespace ExampleDriver {
         virtual ~IVRDriver() {}
 
     };
-}
+} // namespace OpenVREmulatorDriver
 

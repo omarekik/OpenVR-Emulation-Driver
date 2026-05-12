@@ -3,13 +3,11 @@
 #include <chrono>
 #include <cmath>
 
-#include <linalg.h>
-
 #include <Driver/IVRDevice.hpp>
 #include <Driver/InputConfig.hpp>
 #include <Native/DriverFactory.hpp>
 
-namespace ExampleDriver {
+namespace OpenVREmulatorDriver {
     class HMDDevice : public IVRDevice, public vr::IVRDisplayComponent {
         public:
             HMDDevice(std::string serial, InputConfig config = InputConfig::Defaults());

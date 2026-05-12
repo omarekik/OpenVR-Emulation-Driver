@@ -1,37 +1,15 @@
 #include "ControllerDevice.hpp"
+#include "InputMath.hpp"
 #include <Windows.h>
 #include <Xinput.h>
 
+using namespace DirectX;
+
 namespace {
+    using OpenVREmulatorDriver::Clamp01;
+
     constexpr DWORD kXInputControllerIndex = 0;
     constexpr float kMinHapticDurationSeconds = 0.02f;
-
-    float NormalizeThumbAxis(SHORT value, SHORT deadzone)
-    {
-        if (value > deadzone) {
-            return static_cast<float>(value - deadzone) / static_cast<float>(32767 - deadzone);
-        }
-
-        if (value < -deadzone) {
-            return static_cast<float>(value + deadzone) / static_cast<float>(32768 - deadzone);
-        }
-
-        return 0.0f;
-    }
-
-    float NormalizeTrigger(BYTE value)
-    {
-        if (value <= XINPUT_GAMEPAD_TRIGGER_THRESHOLD) {
-            return 0.0f;
-        }
-
-        return static_cast<float>(value - XINPUT_GAMEPAD_TRIGGER_THRESHOLD) / static_cast<float>(255 - XINPUT_GAMEPAD_TRIGGER_THRESHOLD);
-    }
-
-    float Clamp01(float value)
-    {
-        return std::fmax(0.0f, std::fmin(value, 1.0f));
-    }
 
     struct SharedXInputRumbleState {
         float left_motor = 0.0f;
@@ -80,22 +58,24 @@ namespace {
     }
 }
 
-ExampleDriver::ControllerDevice::ControllerDevice(std::string serial, ControllerDevice::Handedness handedness, InputConfig config):
+namespace OpenVREmulatorDriver {
+
+ControllerDevice::ControllerDevice(std::string serial, ControllerDevice::Handedness handedness, InputConfig config):
     serial_(serial),
     handedness_(handedness),
     config_(std::move(config))
 {
 }
 
-bool ExampleDriver::ControllerDevice::s_swapped_         = false;
-bool ExampleDriver::ControllerDevice::s_back_was_pressed_ = false;
+bool ControllerDevice::s_swapped_         = false;
+bool ControllerDevice::s_back_was_pressed_ = false;
 
-std::string ExampleDriver::ControllerDevice::GetSerial()
+std::string ControllerDevice::GetSerial()
 {
     return this->serial_;
 }
 
-void ExampleDriver::ControllerDevice::Update()
+void ControllerDevice::Update()
 {
     if (this->device_index_ == vr::k_unTrackedDeviceIndexInvalid)
         return;
@@ -161,8 +141,8 @@ void ExampleDriver::ControllerDevice::Update()
         vr::DriverPose_t hmd_pose = (*hmd)->GetPose();
 
         // Here we setup some transforms so our controllers are offset from the headset by a small amount so we can see them
-        linalg::vec<float, 3> hmd_position{ (float)hmd_pose.vecPosition[0], (float)hmd_pose.vecPosition[1], (float)hmd_pose.vecPosition[2] };
-        linalg::vec<float, 4> hmd_rotation{ (float)hmd_pose.qRotation.x, (float)hmd_pose.qRotation.y, (float)hmd_pose.qRotation.z, (float)hmd_pose.qRotation.w };
+        XMFLOAT3 hmd_position{ static_cast<float>(hmd_pose.vecPosition[0]), static_cast<float>(hmd_pose.vecPosition[1]), static_cast<float>(hmd_pose.vecPosition[2]) };
+        XMFLOAT4 hmd_rotation{ static_cast<float>(hmd_pose.qRotation.x), static_cast<float>(hmd_pose.qRotation.y), static_cast<float>(hmd_pose.qRotation.z), static_cast<float>(hmd_pose.qRotation.w) };
 
         // Do shaking animation if haptic vibration was requested
         float controller_y = -0.2f + 0.01f * std::sinf(8 * 3.1415f * vibrate_anim_state_);
@@ -185,23 +165,19 @@ void ExampleDriver::ControllerDevice::Update()
         float adj_y = is_right_controller ? this->pose_adjust_y_ : 0.f;
         float adj_z = is_right_controller ? this->pose_adjust_z_ : 0.f;
 
-        linalg::vec<float, 3> hmd_pose_offset = { controller_x + adj_x, controller_y + adj_y, -0.5f + adj_z };
+        XMFLOAT3 offset{ controller_x + adj_x, controller_y + adj_y, -0.5f + adj_z };
+        XMFLOAT3 rotated_offset;
+        XMStoreFloat3(&rotated_offset, XMVector3Rotate(XMLoadFloat3(&offset), XMLoadFloat4(&hmd_rotation)));
 
-        hmd_pose_offset = linalg::qrot(hmd_rotation, hmd_pose_offset);
-
-        linalg::vec<float, 3> final_pose = hmd_pose_offset + hmd_position;
-
-        pose.vecPosition[0] = final_pose.x;
-        pose.vecPosition[1] = final_pose.y;
-        pose.vecPosition[2] = final_pose.z;
+        pose.vecPosition[0] = rotated_offset.x + hmd_position.x;
+        pose.vecPosition[1] = rotated_offset.y + hmd_position.y;
+        pose.vecPosition[2] = rotated_offset.z + hmd_position.z;
 
         // Controllers inherit the HMD rotation (no independent aim mode)
-        linalg::vec<float, 4> controller_rotation = hmd_rotation;
-
-        pose.qRotation.w = controller_rotation.w;
-        pose.qRotation.x = controller_rotation.x;
-        pose.qRotation.y = controller_rotation.y;
-        pose.qRotation.z = controller_rotation.z;
+        pose.qRotation.w = hmd_rotation.w;
+        pose.qRotation.x = hmd_rotation.x;
+        pose.qRotation.y = hmd_rotation.y;
+        pose.qRotation.z = hmd_rotation.z;
     }
 
     auto update_button_state = [&](vr::VRInputComponentHandle_t click_component, vr::VRInputComponentHandle_t touch_component, bool pressed) {
@@ -287,22 +263,22 @@ void ExampleDriver::ControllerDevice::Update()
     this->last_pose_ = pose;
 }
 
-DeviceType ExampleDriver::ControllerDevice::GetDeviceType()
+DeviceType ControllerDevice::GetDeviceType()
 {
     return DeviceType::CONTROLLER;
 }
 
-ExampleDriver::ControllerDevice::Handedness ExampleDriver::ControllerDevice::GetHandedness()
+ControllerDevice::Handedness ControllerDevice::GetHandedness()
 {
     return this->handedness_;
 }
 
-vr::TrackedDeviceIndex_t ExampleDriver::ControllerDevice::GetDeviceIndex()
+vr::TrackedDeviceIndex_t ControllerDevice::GetDeviceIndex()
 {
     return this->device_index_;
 }
 
-vr::EVRInitError ExampleDriver::ControllerDevice::Activate(uint32_t unObjectId)
+vr::EVRInitError ControllerDevice::Activate(uint32_t unObjectId)
 {
     this->device_index_ = unObjectId;
 
@@ -351,7 +327,7 @@ vr::EVRInitError ExampleDriver::ControllerDevice::Activate(uint32_t unObjectId)
     GetDriver()->GetProperties()->SetUint64Property(props, vr::Prop_CurrentUniverseId_Uint64, 2);
     
     // Set up a model "number" (not needed but good to have)
-    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_ModelNumber_String, "example_controller");
+    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_ModelNumber_String, "openvr-emulator_controller");
 
     // Use SteamVR's built-in Oculus Touch Plus render models when available locally.
     std::string render_model_name = this->handedness_ == Handedness::LEFT
@@ -371,12 +347,12 @@ vr::EVRInitError ExampleDriver::ControllerDevice::Activate(uint32_t unObjectId)
     }
 
     // Set controller profile
-    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_InputProfilePath_String, "{example}/input/example_controller_bindings.json");
+    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_InputProfilePath_String, "{openvr-emulator}/input/openvr-emulator_controller_bindings.json");
 
     // Change the icon depending on which handedness this controller is using (ANY uses right)
     std::string controller_handedness_str = this->handedness_ == Handedness::LEFT ? "left" : "right";
-    std::string controller_ready_file = "{example}/icons/controller_ready_" + controller_handedness_str + ".png";
-    std::string controller_not_ready_file = "{example}/icons/controller_not_ready_" + controller_handedness_str + ".png";
+    std::string controller_ready_file = "{openvr-emulator}/icons/controller_ready_" + controller_handedness_str + ".png";
+    std::string controller_not_ready_file = "{openvr-emulator}/icons/controller_not_ready_" + controller_handedness_str + ".png";
 
     GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceReady_String, controller_ready_file.c_str());
 
@@ -391,32 +367,35 @@ vr::EVRInitError ExampleDriver::ControllerDevice::Activate(uint32_t unObjectId)
     return vr::EVRInitError::VRInitError_None;
 }
 
-void ExampleDriver::ControllerDevice::Deactivate()
+void ControllerDevice::Deactivate()
 {
     this->device_index_ = vr::k_unTrackedDeviceIndexInvalid;
 }
 
-void ExampleDriver::ControllerDevice::EnterStandby()
+void ControllerDevice::EnterStandby()
 {
 }
 
-void* ExampleDriver::ControllerDevice::GetComponent(const char* /*pchComponentNameAndVersion*/)
+void* OpenVREmulatorDriver::ControllerDevice::GetComponent(const char* /*pchComponentNameAndVersion*/)
 {
     return nullptr;
 }
 
-void ExampleDriver::ControllerDevice::DebugRequest(const char* /*pchRequest*/, char* pchResponseBuffer, uint32_t unResponseBufferSize)
+void ControllerDevice::DebugRequest(const char* /*pchRequest*/, char* pchResponseBuffer, uint32_t unResponseBufferSize)
 {
     if (unResponseBufferSize >= 1)
         pchResponseBuffer[0] = 0;
 }
 
-vr::DriverPose_t ExampleDriver::ControllerDevice::GetPose()
+vr::DriverPose_t ControllerDevice::GetPose()
 {
     return last_pose_;
 }
 
-bool ExampleDriver::ControllerDevice::IsJoystickEnabled() const
+bool ControllerDevice::IsJoystickEnabled() const
 {
     return this->joystick_enabled_;
 }
+
+} // namespace OpenVREmulatorDriver
+

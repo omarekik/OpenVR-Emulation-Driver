@@ -1,18 +1,16 @@
 {
     "version": 3,
+    "cmakeMinimumRequired": {"major": 3, "minor": 16, "patch": 0},
     "configurePresets": [
         {
-            "name": "windows-msvc-debug",
-            "displayName": "Windows MSVC Debug",
-            "description": "Debug build using MSVC on Windows",
+            "name": "windows-msvc-base",
+            "hidden": true,
             "generator": "Visual Studio 17 2022",
             "binaryDir": "${sourceDir}/build",
+            "toolchainFile": "${sourceDir}/build/generators/conan_toolchain.cmake",
             "architecture": {
                 "value": "x64",
                 "strategy": "set"
-            },
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug"
             },
             "condition": {
                 "type": "equals",
@@ -21,35 +19,28 @@
             }
         },
         {
+            "name": "windows-msvc-debug",
+            "displayName": "Windows MSVC Debug (VS 2022)",
+            "description": "Debug build — run scripts\\bootstrap.ps1 first.",
+            "inherits": "windows-msvc-base"
+        },
+        {
             "name": "windows-msvc-release",
-            "displayName": "Windows MSVC Release",
-            "description": "Release build using MSVC on Windows",
-            "generator": "Visual Studio 17 2022",
-            "binaryDir": "${sourceDir}/build-release",
-            "architecture": {
-                "value": "x64",
-                "strategy": "set"
-            },
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release"
-            },
-            "condition": {
-                "type": "equals",
-                "lhs": "${hostSystemName}",
-                "rhs": "Windows"
-            }
+            "displayName": "Windows MSVC Release (VS 2022)",
+            "description": "Release build — run scripts\\bootstrap.ps1 -Release first.",
+            "inherits": "windows-msvc-base"
         }
     ],
     "buildPresets": [
         {
             "name": "windows-msvc-debug",
-            "displayName": "Build Debug",
+            "displayName": "Build Debug (VS 2022)",
             "configurePreset": "windows-msvc-debug",
             "configuration": "Debug"
         },
         {
             "name": "windows-msvc-release",
-            "displayName": "Build Release",
+            "displayName": "Build Release (VS 2022)",
             "configurePreset": "windows-msvc-release",
             "configuration": "Release"
         }

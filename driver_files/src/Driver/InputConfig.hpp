@@ -4,7 +4,7 @@
 #include <Windows.h>
 #include <Xinput.h>
 
-namespace ExampleDriver {
+namespace OpenVREmulatorDriver {
 
     // Configuration for the HMD device input mapping.
     struct HMDInputConfig {
@@ -57,4 +57,4 @@ namespace ExampleDriver {
         static InputConfig LoadFromDriverRoot();
     };
 
-} // namespace ExampleDriver
+} // namespace OpenVREmulatorDriver

@@ -3,12 +3,10 @@
 #include <chrono>
 #include <cmath>
 
-#include <linalg.h>
-
 #include <Driver/IVRDevice.hpp>
 #include <Native/DriverFactory.hpp>
 
-namespace ExampleDriver {
+namespace OpenVREmulatorDriver {
     class TrackingReferenceDevice : public IVRDevice {
         public:
 
@@ -37,4 +35,4 @@ namespace ExampleDriver {
         float random_angle_rad_;
 
     };
-};
+}; // namespace OpenVREmulatorDriver

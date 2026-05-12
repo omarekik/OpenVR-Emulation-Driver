@@ -1,48 +1,28 @@
 #include "HMDDevice.hpp"
 #include "ControllerDevice.hpp"
+#include "InputMath.hpp"
 #include <Windows.h>
 #include <Xinput.h>
 #include <numbers>
 
+using namespace DirectX;
+
 namespace {
     constexpr DWORD kXInputControllerIndex = 0;
     constexpr float kSecondsFromVsyncToPhotons = 0.011f;
-
-    float NormalizeThumbAxis(SHORT value, SHORT deadzone)
-    {
-        if (value > deadzone) {
-            return static_cast<float>(value - deadzone) / static_cast<float>(32767 - deadzone);
-        }
-
-        if (value < -deadzone) {
-            return static_cast<float>(value + deadzone) / static_cast<float>(32768 - deadzone);
-        }
-
-        return 0.0f;
-    }
-
-    float NormalizeTrigger(BYTE value)
-    {
-        if (value <= XINPUT_GAMEPAD_TRIGGER_THRESHOLD) {
-            return 0.0f;
-        }
-
-        return static_cast<float>(value - XINPUT_GAMEPAD_TRIGGER_THRESHOLD) / static_cast<float>(255 - XINPUT_GAMEPAD_TRIGGER_THRESHOLD);
-    }
-
 }
 
-ExampleDriver::HMDDevice::HMDDevice(std::string serial, InputConfig config)
+OpenVREmulatorDriver::HMDDevice::HMDDevice(std::string serial, InputConfig config)
     : serial_(serial), config_(std::move(config))
 {
 }
 
-std::string ExampleDriver::HMDDevice::GetSerial()
+std::string OpenVREmulatorDriver::HMDDevice::GetSerial()
 {
     return this->serial_;
 }
 
-void ExampleDriver::HMDDevice::Update()
+void OpenVREmulatorDriver::HMDDevice::Update()
 {
     if (this->device_index_ == vr::k_unTrackedDeviceIndexInvalid)
         return;
@@ -84,14 +64,16 @@ void ExampleDriver::HMDDevice::Update()
     this->rot_x_ = std::fmax(this->rot_x_, -std::numbers::pi_v<float> / 2);
     this->rot_x_ = std::fmin(this->rot_x_,  std::numbers::pi_v<float> / 2);
 
-    linalg::vec<float, 4> y_quat{ 0, std::sinf(this->rot_y_ / 2), 0, std::cosf(this->rot_y_ / 2) };
-    linalg::vec<float, 4> x_quat{ std::sinf(this->rot_x_ / 2), 0, 0, std::cosf(this->rot_x_ / 2) };
-    linalg::vec<float, 4> pose_rot = linalg::qmul(y_quat, x_quat);
+    XMFLOAT4 y_quat_f{ 0, std::sinf(this->rot_y_ / 2), 0, std::cosf(this->rot_y_ / 2) };
+    XMFLOAT4 x_quat_f{ std::sinf(this->rot_x_ / 2), 0, 0, std::cosf(this->rot_x_ / 2) };
+    XMVECTOR pose_rot = XMQuaternionMultiply(XMLoadFloat4(&x_quat_f), XMLoadFloat4(&y_quat_f));
 
-    pose.qRotation.w = (float) pose_rot.w;
-    pose.qRotation.x = (float) pose_rot.x;
-    pose.qRotation.y = (float) pose_rot.y;
-    pose.qRotation.z = (float) pose_rot.z;
+    XMFLOAT4 pose_rot_f;
+    XMStoreFloat4(&pose_rot_f, pose_rot);
+    pose.qRotation.w = pose_rot_f.w; 
+    pose.qRotation.x = pose_rot_f.x;
+    pose.qRotation.y = pose_rot_f.y;
+    pose.qRotation.z = pose_rot_f.z;
 
     // Left trigger alone → move forward; left trigger + LB → move backward
     if (has_xinput) {
@@ -99,11 +81,12 @@ void ExampleDriver::HMDDevice::Update()
         if (lt_value > 0.0f) {
             bool lb_pressed = (xinput_state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER) != 0;
             float sign = lb_pressed ? 1.0f : -1.0f;
-            linalg::vec<float, 3> move_dir{0, 0, sign * lt_value * hmd_cfg.move_speed * delta_seconds};
-            move_dir = linalg::qrot(pose_rot, move_dir);
-            this->pos_x_ += move_dir.x;
-            this->pos_y_ += move_dir.y;
-            this->pos_z_ += move_dir.z;
+            XMFLOAT3 move_dir_f{ 0, 0, sign * lt_value * hmd_cfg.move_speed * delta_seconds };
+            XMFLOAT3 rotated_f;
+            XMStoreFloat3(&rotated_f, XMVector3Rotate(XMLoadFloat3(&move_dir_f), pose_rot));
+            this->pos_x_ += rotated_f.x;
+            this->pos_y_ += rotated_f.y;
+            this->pos_z_ += rotated_f.z;
         }
     }
 
@@ -121,17 +104,17 @@ void ExampleDriver::HMDDevice::Update()
     this->last_pose_ = pose;
 }
 
-DeviceType ExampleDriver::HMDDevice::GetDeviceType()
+DeviceType OpenVREmulatorDriver::HMDDevice::GetDeviceType()
 {
     return DeviceType::HMD;
 }
 
-vr::TrackedDeviceIndex_t ExampleDriver::HMDDevice::GetDeviceIndex()
+vr::TrackedDeviceIndex_t OpenVREmulatorDriver::HMDDevice::GetDeviceIndex()
 {
     return this->device_index_;
 }
 
-vr::EVRInitError ExampleDriver::HMDDevice::Activate(uint32_t unObjectId)
+vr::EVRInitError OpenVREmulatorDriver::HMDDevice::Activate(uint32_t unObjectId)
 {
     this->device_index_ = unObjectId;
     POINT current_mouse_pos;
@@ -190,18 +173,18 @@ vr::EVRInitError ExampleDriver::HMDDevice::Activate(uint32_t unObjectId)
     GetDriver()->GetProperties()->SetFloatProperty(props, vr::Prop_SecondsFromVsyncToPhotons_Float, kSecondsFromVsyncToPhotons);
     
     // Set up a model "number" (not needed but good to have)
-    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_ModelNumber_String, "EXAMPLE_HMD_DEVICE");
+    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_ModelNumber_String, "OPENVR-EMULATOR_HMD_DEVICE");
 
     // Set up icon paths
-    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceReady_String, "{example}/icons/hmd_ready.png");
+    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceReady_String, "{openvr-emulator}/icons/hmd_ready.png");
 
-    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceOff_String, "{example}/icons/hmd_not_ready.png");
-    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceSearching_String, "{example}/icons/hmd_not_ready.png");
-    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceSearchingAlert_String, "{example}/icons/hmd_not_ready.png");
-    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceReadyAlert_String, "{example}/icons/hmd_not_ready.png");
-    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceNotReady_String, "{example}/icons/hmd_not_ready.png");
-    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceStandby_String, "{example}/icons/hmd_not_ready.png");
-    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceAlertLow_String, "{example}/icons/hmd_not_ready.png");
+    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceOff_String, "{openvr-emulator}/icons/hmd_not_ready.png");
+    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceSearching_String, "{openvr-emulator}/icons/hmd_not_ready.png");
+    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceSearchingAlert_String, "{openvr-emulator}/icons/hmd_not_ready.png");
+    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceReadyAlert_String, "{openvr-emulator}/icons/hmd_not_ready.png");
+    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceNotReady_String, "{openvr-emulator}/icons/hmd_not_ready.png");
+    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceStandby_String, "{openvr-emulator}/icons/hmd_not_ready.png");
+    GetDriver()->GetProperties()->SetStringProperty(props, vr::Prop_NamedIconPathDeviceAlertLow_String, "{openvr-emulator}/icons/hmd_not_ready.png");
 
     GetDriver()->GetProperties()->SetBoolProperty(props, vr::Prop_HasDisplayComponent_Bool, true);
     GetDriver()->GetProperties()->SetBoolProperty(props, vr::Prop_DeviceCanPowerOff_Bool, false);
@@ -211,16 +194,16 @@ vr::EVRInitError ExampleDriver::HMDDevice::Activate(uint32_t unObjectId)
     return vr::EVRInitError::VRInitError_None;
 }
 
-void ExampleDriver::HMDDevice::Deactivate()
+void OpenVREmulatorDriver::HMDDevice::Deactivate()
 {
     this->device_index_ = vr::k_unTrackedDeviceIndexInvalid;
 }
 
-void ExampleDriver::HMDDevice::EnterStandby()
+void OpenVREmulatorDriver::HMDDevice::EnterStandby()
 {
 }
 
-void* ExampleDriver::HMDDevice::GetComponent(const char* pchComponentNameAndVersion)
+void* OpenVREmulatorDriver::HMDDevice::GetComponent(const char* pchComponentNameAndVersion)
 {
     if (!_stricmp(pchComponentNameAndVersion, vr::IVRDisplayComponent_Version)) {
         return static_cast<vr::IVRDisplayComponent*>(this);
@@ -228,18 +211,18 @@ void* ExampleDriver::HMDDevice::GetComponent(const char* pchComponentNameAndVers
     return nullptr;
 }
 
-void ExampleDriver::HMDDevice::DebugRequest(const char* /*pchRequest*/, char* pchResponseBuffer, uint32_t unResponseBufferSize)
+void OpenVREmulatorDriver::HMDDevice::DebugRequest(const char* /*pchRequest*/, char* pchResponseBuffer, uint32_t unResponseBufferSize)
 {
     if (unResponseBufferSize >= 1)
         pchResponseBuffer[0] = 0;
 }
 
-vr::DriverPose_t ExampleDriver::HMDDevice::GetPose()
+vr::DriverPose_t OpenVREmulatorDriver::HMDDevice::GetPose()
 {
     return this->last_pose_;
 }
 
-void ExampleDriver::HMDDevice::GetWindowBounds(int32_t* pnX, int32_t* pnY, uint32_t* pnWidth, uint32_t* pnHeight)
+void OpenVREmulatorDriver::HMDDevice::GetWindowBounds(int32_t* pnX, int32_t* pnY, uint32_t* pnWidth, uint32_t* pnHeight)
 {
     *pnX = this->window_x_;
     *pnY = this->window_y_;
@@ -247,23 +230,23 @@ void ExampleDriver::HMDDevice::GetWindowBounds(int32_t* pnX, int32_t* pnY, uint3
     *pnHeight = this->window_height_;
 }
 
-bool ExampleDriver::HMDDevice::IsDisplayOnDesktop()
+bool OpenVREmulatorDriver::HMDDevice::IsDisplayOnDesktop()
 {
     return true;
 }
 
-bool ExampleDriver::HMDDevice::IsDisplayRealDisplay()
+bool OpenVREmulatorDriver::HMDDevice::IsDisplayRealDisplay()
 {
     return false;
 }
 
-void ExampleDriver::HMDDevice::GetRecommendedRenderTargetSize(uint32_t* pnWidth, uint32_t* pnHeight)
+void OpenVREmulatorDriver::HMDDevice::GetRecommendedRenderTargetSize(uint32_t* pnWidth, uint32_t* pnHeight)
 {
     *pnWidth = this->window_width_ / 2;
     *pnHeight = this->window_height_;
 }
 
-void ExampleDriver::HMDDevice::GetEyeOutputViewport(vr::EVREye eEye, uint32_t* pnX, uint32_t* pnY, uint32_t* pnWidth, uint32_t* pnHeight)
+void OpenVREmulatorDriver::HMDDevice::GetEyeOutputViewport(vr::EVREye eEye, uint32_t* pnX, uint32_t* pnY, uint32_t* pnWidth, uint32_t* pnHeight)
 {
     const uint32_t eye_width = this->window_width_ / 2;
 
@@ -279,7 +262,7 @@ void ExampleDriver::HMDDevice::GetEyeOutputViewport(vr::EVREye eEye, uint32_t* p
     }
 }
 
-void ExampleDriver::HMDDevice::GetProjectionRaw(vr::EVREye /*eEye*/, float* pfLeft, float* pfRight, float* pfTop, float* pfBottom)
+void OpenVREmulatorDriver::HMDDevice::GetProjectionRaw(vr::EVREye /*eEye*/, float* pfLeft, float* pfRight, float* pfTop, float* pfBottom)
 {
     const float eye_aspect = static_cast<float>(this->window_width_ / 2) / static_cast<float>(this->window_height_);
 
@@ -289,7 +272,7 @@ void ExampleDriver::HMDDevice::GetProjectionRaw(vr::EVREye /*eEye*/, float* pfLe
     *pfBottom = 1;
 }
 
-vr::DistortionCoordinates_t ExampleDriver::HMDDevice::ComputeDistortion(vr::EVREye /*eEye*/, float fU, float fV)
+vr::DistortionCoordinates_t OpenVREmulatorDriver::HMDDevice::ComputeDistortion(vr::EVREye /*eEye*/, float fU, float fV)
 {
     vr::DistortionCoordinates_t coordinates;
     coordinates.rfBlue[0] = fU;
@@ -300,3 +283,4 @@ vr::DistortionCoordinates_t ExampleDriver::HMDDevice::ComputeDistortion(vr::EVRE
     coordinates.rfRed[1] = fV;
     return coordinates;
 }
+

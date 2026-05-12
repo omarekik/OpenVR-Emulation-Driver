@@ -3,12 +3,10 @@
 #include <chrono>
 #include <cmath>
 
-#include <linalg.h>
-
 #include <Driver/IVRDevice.hpp>
 #include <Native/DriverFactory.hpp>
 
-namespace ExampleDriver {
+namespace OpenVREmulatorDriver {
     class TrackerDevice : public IVRDevice {
         public:
 
@@ -43,4 +41,4 @@ namespace ExampleDriver {
         vr::VRInputComponentHandle_t system_touch_component_ = 0;
 
     };
-};
+}; // namespace OpenVREmulatorDriver

@@ -8,7 +8,7 @@
 #include <Driver/IVRDriver.hpp>
 #include <Driver/IVRDevice.hpp>
 
-namespace ExampleDriver {
+namespace OpenVREmulatorDriver {
     class VRDriver : public IVRDriver {
     public:
 
@@ -42,4 +42,4 @@ namespace ExampleDriver {
         std::string settings_key_ = "driver_example";
 
     };
-};
+}; // namespace OpenVREmulatorDriver

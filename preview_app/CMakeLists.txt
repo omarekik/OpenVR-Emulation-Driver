@@ -6,6 +6,7 @@ if(NOT WIN32)
     message(FATAL_ERROR "steamvr_mirror_preview currently supports Windows only.")
 endif()
 
+# OpenVR SDK — from git submodule libraries/openvr
 set(OPENVR_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../libraries/openvr/headers")
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -16,7 +17,7 @@ endif()
 
 find_library(
     OPENVR_LIB
-    openvr_api
+    NAMES openvr_api
     HINTS "${CMAKE_CURRENT_SOURCE_DIR}/../libraries/openvr/lib/win${PROCESSOR_ARCH}"
     NO_DEFAULT_PATH
     REQUIRED
@@ -28,12 +29,6 @@ add_executable(
     SteamVRMirrorPreview.cpp
 )
 
-target_include_directories(
-    steamvr_mirror_preview
-    PRIVATE
-    "${OPENVR_INCLUDE_DIR}"
-)
-
 target_compile_definitions(
     steamvr_mirror_preview
     PRIVATE
@@ -41,6 +36,12 @@ target_compile_definitions(
     NOMINMAX
     UNICODE
     _UNICODE
+)
+
+target_include_directories(
+    steamvr_mirror_preview
+    SYSTEM PRIVATE
+    "${OPENVR_INCLUDE_DIR}"
 )
 
 target_link_libraries(
@@ -63,3 +64,4 @@ add_custom_command(
         "${CMAKE_CURRENT_SOURCE_DIR}/../libraries/openvr/bin/win${PROCESSOR_ARCH}/openvr_api.dll"
         "$<TARGET_FILE_DIR:steamvr_mirror_preview>/openvr_api.dll"
 )
+
