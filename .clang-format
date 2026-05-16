@@ -1,115 +1,52 @@
 ---
 Language:        Cpp
-BasedOnStyle:    Google
+BasedOnStyle:    Microsoft
 
-# Column limit — keeps diffs readable and fits two panes side-by-side
+# 100 keeps diffs readable and fits two editor panes side-by-side (Microsoft default: 120)
 ColumnLimit:     100
 
-# Indentation
-IndentWidth:     4
-TabWidth:        4
-UseTab:          Never
-ContinuationIndentWidth: 4
-ConstructorInitializerIndentWidth: 4
+# Flush access modifiers with the class keyword; matches the 4-space IndentWidth
+# (Microsoft default: -2)
 AccessModifierOffset: -4
 
-# Brace style — keep opening braces on the same line (Attach)
-BreakBeforeBraces: Attach
-BraceWrapping:
-  AfterCaseLabel:       false
-  AfterClass:           false
-  AfterControlStatement: Never
-  AfterEnum:            false
-  AfterFunction:        false
-  AfterNamespace:       false
-  AfterStruct:          false
-  AfterUnion:           false
-  AfterExternBlock:     false
-  BeforeCatch:          false
-  BeforeElse:           false
-  BeforeLambdaBody:     false
-  BeforeWhile:          false
-  IndentBraces:         false
-  SplitEmptyFunction:   true
-  SplitEmptyRecord:     true
-  SplitEmptyNamespace:  true
-
-# Pointers and references — left-aligned: int* p, int& r
-PointerAlignment: Left
+# References follow pointer alignment: int& r  (Microsoft default leaves ReferenceAlignment unset)
 ReferenceAlignment: Pointer
 
-# Templates
-AlwaysBreakTemplateDeclarations: Yes
-
-# Include ordering
+# Regroup and sort includes into three buckets: C headers, C++ stdlib, project
 SortIncludes:    CaseSensitive
 IncludeBlocks:   Regroup
 IncludeCategories:
-  # Windows / system headers (<windows.h>, <d3d11.h>, etc.)
-  - Regex:           '^<.*\.h>'
-    Priority:        1
-  # C++ standard library (<vector>, <string>, etc.)
-  - Regex:           '^<.*>'
-    Priority:        2
-  # Project headers
-  - Regex:           '.*'
-    Priority:        3
+  - Regex:       '^<.*\.h>'    # Windows / C system headers
+    Priority:    1
+  - Regex:       '^<.*>'       # C++ standard library
+    Priority:    2
+  - Regex:       '.*'          # project headers
+    Priority:    3
 
-# Function argument / parameter packing
-BinPackArguments:  true
-BinPackParameters: true
-AllowAllArgumentsOnNextLine: true
-AllowAllParametersOfDeclarationOnNextLine: true
-
-# Short forms
-AllowShortFunctionsOnASingleLine: Inline
-AllowShortLambdasOnASingleLine:   All
-AllowShortIfStatementsOnASingleLine: WithoutElse
-AllowShortLoopsOnASingleLine:     true
-AllowShortBlocksOnASingleLine:    Never
-AllowShortCaseLabelsOnASingleLine: false
-AllowShortEnumsOnASingleLine:     true
-
-# Breaking
-AlignAfterOpenBracket:   Align
-AlignOperands:           Align
-AlignTrailingComments:   true
-BreakBeforeBinaryOperators: None
-BreakBeforeTernaryOperators: true
+# Break before the colon in ctor-initializer lists; pack all initializers on the
+# next line as a group rather than one-per-line (Microsoft defaults differ)
 BreakConstructorInitializers: BeforeColon
-BreakInheritanceList:    BeforeColon
-PackConstructorInitializers: NextLine
+BreakInheritanceList:         BeforeColon
+PackConstructorInitializers:  NextLine
 
-# Spaces
-SpaceAfterCStyleCast:           false
-SpaceAfterLogicalNot:           false
-SpaceAfterTemplateKeyword:      true
-SpaceBeforeAssignmentOperators: true
-SpaceBeforeCaseColon:           false
-SpaceBeforeCpp11BracedList:     false
-SpaceBeforeCtorInitializerColon: true
-SpaceBeforeInheritanceColon:    true
-SpaceBeforeParens:              ControlStatements
-SpaceBeforeRangeBasedForLoopColon: true
-SpaceInEmptyBlock:              false
-SpacesBeforeTrailingComments:   2
-SpacesInAngles:                 Never
-SpacesInContainerLiterals:      false
-SpacesInParentheses:            false
-SpacesInSquareBrackets:         false
+# Allow trivial inline getters/setters on one line (Microsoft default: None)
+AllowShortFunctionsOnASingleLine: Inline
+# Allow bodyless if without else on one line (Microsoft default: Never)
+AllowShortIfStatementsOnASingleLine: WithoutElse
+# Allow single-statement loops on one line (Microsoft default: false)
+AllowShortLoopsOnASingleLine: true
 
-# Misc
-Cpp11BracedListStyle:     true
-FixNamespaceComments:     true
-MaxEmptyLinesToKeep:      1
-KeepEmptyLinesAtTheStartOfBlocks: false
-NamespaceIndentation:     None
-ReflowComments:           true
-SortUsingDeclarations:    true
-Standard:                 c++20
+# Indent case labels under switch (Microsoft default: false)
+IndentCaseLabels: true
+
+# One blank line between logical access-modifier groups; no blank line after the modifier
+# (Microsoft default: Never / Never)
 EmptyLineBeforeAccessModifier: LogicalBlock
 EmptyLineAfterAccessModifier:  Never
-IndentCaseLabels:         true
-IndentPPDirectives:       None
-InsertTrailingCommas:     None
+
+# Two spaces before trailing // comments (Microsoft default: 1)
+SpacesBeforeTrailingComments:  2
+
+# Explicit C++20; the Microsoft base may resolve to an older standard
+Standard:        c++20
 ...

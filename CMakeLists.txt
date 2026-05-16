@@ -4,6 +4,11 @@ cmake_minimum_required(VERSION 3.16)
 project("OpenVR_Emulation_Driver")
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
+# VS 2022 injects a vcpkg AppLocal post-build step into every C++ project that
+# calls pwsh.exe to copy vcpkg DLLs. This project doesn't use vcpkg, so disable
+# the integration to suppress the 'pwsh.exe is not recognized' build warning.
+set(CMAKE_VS_GLOBALS "VcpkgEnabled=false")
+
 set(SIZEOF_VOIDP ${CMAKE_SIZEOF_VOID_P})
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
     set(PROCESSOR_ARCH "64")
@@ -51,6 +56,10 @@ set_target_properties("${DRIVER_PROJECT}" PROPERTIES CXX_EXTENSIONS OFF)
 if(MSVC)
     target_compile_options("${DRIVER_PROJECT}" PRIVATE /W4 /permissive- /external:W0)
 endif()
+
+# Optional clang-tidy static analysis (pass -DENABLE_CLANG_TIDY=ON to activate)
+include(scripts/static_checking.cmake)
+enable_clang_tidy("${DRIVER_PROJECT}")
 
 # Set the Visual Studio startup project
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT "${DRIVER_PROJECT}")

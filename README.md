@@ -52,7 +52,51 @@ cmake --build build --config Debug
 
 No need to re-run the bootstrap unless `conanfile.py` changes.
 
-## Installation
+## Running tests
+
+Unit tests are built as the `driver_tests` target (GTest/GMock). Two ways to run them from Visual Studio:
+
+**Option 1 — RUN_TESTS target** (quick pass/fail)
+
+In Solution Explorer, expand **CMakePredefinedTargets** → right-click **RUN_TESTS** → **Build**. CTest output appears in the Build Output pane.
+
+**Option 2 — Test Explorer** (recommended)
+
+Open **View → Test Explorer**. Visual Studio reads the test list discovered at post-build and shows each `TEST(suite, name)` individually. You can run all tests, re-run failures, or right-click a single test to debug it with a breakpoint.
+
+> The test list is populated by a post-build step that runs `driver_tests.exe --gtest_list_tests`. Build `driver_tests` at least once before opening Test Explorer.
+
+## Code style & static analysis
+
+Both tools are installed into the project's Python virtual environment by the bootstrap script (`pip install clang-format clang-tidy`). No separate LLVM installation is required.
+
+### clang-format
+
+All C++ sources are formatted with **clang-format** using the Microsoft base style (see [`.clang-format`](.clang-format) for the full configuration — only meaningful deviations from the Microsoft defaults are listed there).
+
+Format everything in-place:
+
+```powershell
+.\scripts\format_code.ps1
+```
+
+CI runs the same script and fails the pipeline if any file would be changed, so format before pushing.
+
+### clang-tidy
+
+Static analysis uses **clang-tidy** with the check set and naming conventions defined in [`.clang-tidy`](.clang-tidy). Naming follows Microsoft C++ conventions (`PascalCase` methods/types, `m_camelCase` members, `camelCase` locals).
+
+**Locally (Visual Studio):** analysis is registered as an on-demand analyser for each target. Run it via:
+
+> **Build → Run Code Analysis on Solution**
+
+Findings appear in the **Code Analysis Results** window and **Error List**. Normal builds are not affected.
+
+**CI (Ninja):** clang-tidy runs automatically on every translation unit during the build via `CXX_CLANG_TIDY`. All warnings are treated as errors (`WarningsAsErrors: "*"`).
+
+The `ENABLE_CLANG_TIDY` CMake option (default `ON` in all presets) controls whether the integration is wired up at configure time.
+
+
 
 > **If you build with Visual Studio (or `cmake --build`) running as Administrator**, the post-build step deploys the driver automatically to:
 > ```

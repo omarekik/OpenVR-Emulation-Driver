@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+
 #include <Driver/InputMath.hpp>
 
 using namespace OpenVREmulatorDriver;
@@ -14,39 +15,39 @@ TEST(NormalizeThumbAxis, ZeroIsZero)
 
 TEST(NormalizeThumbAxis, InsideDeadzoneReturnsZero)
 {
-    SHORT dz = XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE;
-    EXPECT_FLOAT_EQ(NormalizeThumbAxis(dz,  dz), 0.0f);
+    const SHORT dz = XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE;
+    EXPECT_FLOAT_EQ(NormalizeThumbAxis(dz, dz), 0.0f);
     EXPECT_FLOAT_EQ(NormalizeThumbAxis(-dz, dz), 0.0f);
-    EXPECT_FLOAT_EQ(NormalizeThumbAxis(1,   dz), 0.0f);
-    EXPECT_FLOAT_EQ(NormalizeThumbAxis(-1,  dz), 0.0f);
+    EXPECT_FLOAT_EQ(NormalizeThumbAxis(1, dz), 0.0f);
+    EXPECT_FLOAT_EQ(NormalizeThumbAxis(-1, dz), 0.0f);
 }
 
 TEST(NormalizeThumbAxis, MaxPositiveIsOne)
 {
-    float result = NormalizeThumbAxis(32767, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
+    const float result = NormalizeThumbAxis(32767, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
     EXPECT_FLOAT_EQ(result, 1.0f);
 }
 
 TEST(NormalizeThumbAxis, MaxNegativeIsNegativeOne)
 {
-    float result = NormalizeThumbAxis(-32768, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
+    const float result = NormalizeThumbAxis(-32768, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
     EXPECT_FLOAT_EQ(result, -1.0f);
 }
 
 TEST(NormalizeThumbAxis, PositiveScalesMonotonically)
 {
-    SHORT dz = XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE;
-    float low  = NormalizeThumbAxis(static_cast<SHORT>(dz + 100), dz);
-    float high = NormalizeThumbAxis(static_cast<SHORT>(dz + 500), dz);
+    const SHORT dz = XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE;
+    const float low = NormalizeThumbAxis(static_cast<SHORT>(dz + 100), dz);
+    const float high = NormalizeThumbAxis(static_cast<SHORT>(dz + 500), dz);
     EXPECT_GT(high, low);
     EXPECT_GT(low, 0.0f);
 }
 
 TEST(NormalizeThumbAxis, NegativeScalesMonotonically)
 {
-    SHORT dz = XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE;
-    float low  = NormalizeThumbAxis(static_cast<SHORT>(-(dz + 500)), dz);
-    float high = NormalizeThumbAxis(static_cast<SHORT>(-(dz + 100)), dz);
+    const SHORT dz = XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE;
+    const float low = NormalizeThumbAxis(static_cast<SHORT>(-(dz + 500)), dz);
+    const float high = NormalizeThumbAxis(static_cast<SHORT>(-(dz + 100)), dz);
     EXPECT_LT(low, high);
     EXPECT_LT(high, 0.0f);
 }
@@ -68,8 +69,8 @@ TEST(NormalizeTrigger, FullPressIsOne)
 
 TEST(NormalizeTrigger, ScalesMonotonically)
 {
-    float low  = NormalizeTrigger(XINPUT_GAMEPAD_TRIGGER_THRESHOLD + 10);
-    float high = NormalizeTrigger(XINPUT_GAMEPAD_TRIGGER_THRESHOLD + 50);
+    const float low = NormalizeTrigger(XINPUT_GAMEPAD_TRIGGER_THRESHOLD + 10);
+    const float high = NormalizeTrigger(XINPUT_GAMEPAD_TRIGGER_THRESHOLD + 50);
     EXPECT_GT(low, 0.0f);
     EXPECT_GT(high, low);
     EXPECT_LE(high, 1.0f);

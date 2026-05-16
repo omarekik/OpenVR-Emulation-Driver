@@ -1,12 +1,16 @@
 #pragma once
 
+#include <DirectXMath.h>
 #include <Windows.h>
 #include <Xinput.h>
-#include <DirectXMath.h>
+
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <limits>
 
-namespace OpenVREmulatorDriver {
+namespace OpenVREmulatorDriver
+{
 
 // ---------------------------------------------------------------------------
 // XInput normalisation helpers
@@ -16,10 +20,14 @@ namespace OpenVREmulatorDriver {
 // Returns 0 when |value| <= deadzone.
 inline float NormalizeThumbAxis(SHORT value, SHORT deadzone) noexcept
 {
-    if (value > deadzone)
-        return static_cast<float>(value - deadzone) / static_cast<float>(32767 - deadzone);
-    if (value < -deadzone)
-        return static_cast<float>(value + deadzone) / static_cast<float>(32768 - deadzone);
+    if (value > deadzone) {
+        return static_cast<float>(value - deadzone) /
+               static_cast<float>((std::numeric_limits<int16_t>::max)() - deadzone);  // NOLINT(readability-redundant-parentheses)
+    }
+    if (value < -deadzone) {
+        return static_cast<float>(value + deadzone) /
+               static_cast<float>((std::numeric_limits<int16_t>::max)() + 1 - deadzone);  // NOLINT(readability-redundant-parentheses)
+    }
     return 0.0f;
 }
 
@@ -27,10 +35,12 @@ inline float NormalizeThumbAxis(SHORT value, SHORT deadzone) noexcept
 // Returns 0 when value <= XINPUT_GAMEPAD_TRIGGER_THRESHOLD.
 inline float NormalizeTrigger(BYTE value) noexcept
 {
-    if (value <= XINPUT_GAMEPAD_TRIGGER_THRESHOLD)
+    if (value <= XINPUT_GAMEPAD_TRIGGER_THRESHOLD) {
         return 0.0f;
-    return static_cast<float>(value - XINPUT_GAMEPAD_TRIGGER_THRESHOLD)
-         / static_cast<float>(255 - XINPUT_GAMEPAD_TRIGGER_THRESHOLD);
+    }
+    return static_cast<float>(value - XINPUT_GAMEPAD_TRIGGER_THRESHOLD) /
+           static_cast<float>((std::numeric_limits<uint8_t>::max)() -  // NOLINT(readability-redundant-parentheses)
+                               XINPUT_GAMEPAD_TRIGGER_THRESHOLD);
 }
 
 // Clamp a float value to [0, 1].
@@ -39,4 +49,4 @@ inline float Clamp01(float value) noexcept
     return std::fmax(0.0f, std::fmin(value, 1.0f));
 }
 
-} // namespace OpenVREmulatorDriver
+}  // namespace OpenVREmulatorDriver

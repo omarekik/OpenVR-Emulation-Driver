@@ -41,6 +41,45 @@ Write-Host "CONAN_HOME set to: $env:CONAN_HOME" -ForegroundColor DarkGray
 Push-Location $repoRoot
 
 # ---------------------------------------------------------------------------
+# 0. Clean build directory
+# ---------------------------------------------------------------------------
+$buildDir = Join-Path $repoRoot "build"
+$slnFile  = Join-Path $buildDir "OpenVR_Emulation_Driver.sln"
+if (Test-Path $buildDir) {
+    Write-Step "Removing old build directory..."
+    # Close any process (e.g. Visual Studio) that has the .sln open so that
+    # Remove-Item does not fail with "file in use".
+    if (Test-Path $slnFile) {
+        $slnNorm = (Resolve-Path $slnFile).Path.ToLower()
+        Get-Process | Where-Object { $_.MainWindowHandle -ne 0 } | ForEach-Object {
+            try {
+                $proc = $_
+                $proc.Modules | Where-Object {
+                    $_.FileName -and $_.FileName.ToLower() -eq $slnNorm
+                } | ForEach-Object {
+                    Write-Host "  Closing $($proc.Name) (PID $($proc.Id)) which has the .sln open..." -ForegroundColor Yellow
+                    $proc.CloseMainWindow() | Out-Null
+                    $proc.WaitForExit(5000) | Out-Null
+                    if (-not $proc.HasExited) { $proc.Kill() }
+                }
+            } catch { }
+        }
+        # Simpler fallback: close devenv.exe / devenv.com by window title
+        Get-Process -Name "devenv" -ErrorAction SilentlyContinue | Where-Object {
+            $_.MainWindowTitle -match [regex]::Escape((Split-Path $slnFile -Leaf))
+        } | ForEach-Object {
+            Write-Host "  Closing Visual Studio (PID $($_.Id))..." -ForegroundColor Yellow
+            $_.CloseMainWindow() | Out-Null
+            $_.WaitForExit(5000) | Out-Null
+            if (-not $_.HasExited) { $_.Kill() }
+        }
+    }
+    Remove-Item -Recurse -Force $buildDir
+}
+New-Item -ItemType Directory -Path $buildDir | Out-Null
+Write-Host "  Created fresh build directory." -ForegroundColor DarkGray
+
+# ---------------------------------------------------------------------------
 # 1. Require Python
 # ---------------------------------------------------------------------------
 Write-Step "Checking Python..."
@@ -68,10 +107,16 @@ Write-Step "Activating virtual environment..."
 & "$venvDir\Scripts\Activate.ps1"
 
 # ---------------------------------------------------------------------------
-# 4. Install / upgrade Conan
+# 4a. Install / upgrade Conan
 # ---------------------------------------------------------------------------
 Write-Step "Installing/upgrading Conan..."
 pip install --upgrade conan
+
+# ---------------------------------------------------------------------------
+# 4b. Install clang-format and clang-tidy
+# ---------------------------------------------------------------------------
+Write-Step "Installing/upgrading clang-format and clang-tidy..."
+pip install --upgrade clang-format clang-tidy
 
 # ---------------------------------------------------------------------------
 # 5. Ensure a default Conan profile exists
@@ -184,4 +229,7 @@ if ($originalConanHome) {
 }
 
 Write-Host "`n==> Bootstrap complete!" -ForegroundColor Green
-Write-Host "    Open build\OpenVR_Emulation_Driver.sln in Visual Studio and build." -ForegroundColor Green
+
+$sln = Join-Path $repoRoot "build\OpenVR_Emulation_Driver.sln"
+Write-Host "    Opening $sln ..." -ForegroundColor Green
+Start-Process $sln

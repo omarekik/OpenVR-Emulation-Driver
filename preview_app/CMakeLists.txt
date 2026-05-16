@@ -53,8 +53,6 @@ target_link_libraries(
     d3dcompiler
 )
 
-set_property(TARGET steamvr_mirror_preview PROPERTY CXX_STANDARD 17)
-set_property(TARGET steamvr_mirror_preview PROPERTY CXX_STANDARD_REQUIRED ON)
 set_property(TARGET steamvr_mirror_preview PROPERTY VS_GLOBAL_VcpkgEnabled false)
 
 add_custom_command(

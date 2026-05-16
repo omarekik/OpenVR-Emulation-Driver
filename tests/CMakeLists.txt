@@ -19,7 +19,12 @@ add_executable(driver_tests
 )
 
 target_compile_features(driver_tests PRIVATE cxx_std_20)
-set_target_properties(driver_tests PROPERTIES CXX_EXTENSIONS OFF)
+set_target_properties(driver_tests PROPERTIES
+    CXX_EXTENSIONS OFF
+    # ConanCenter gtest is built with /MD (MD_DynamicRelease). Pin the runtime
+    # to MultiThreadedDLL for all configs so Debug builds don't default to /MT.
+    MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
+)
 
 target_include_directories(driver_tests
     PRIVATE
@@ -40,3 +45,5 @@ endif()
 
 include(GoogleTest)
 gtest_discover_tests(driver_tests)
+
+enable_clang_tidy(driver_tests)

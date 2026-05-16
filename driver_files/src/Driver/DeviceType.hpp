@@ -1,7 +1,9 @@
 #pragma once
-enum class DeviceType {
+#include <cstdint>
+enum class DeviceType : std::uint8_t
+{
     HMD,
     CONTROLLER,
     TRACKER,
-    TRACKING_REFERENCE
+    TrackingReference
 };
