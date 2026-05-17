@@ -17,11 +17,16 @@ using Microsoft::WRL::ComPtr;
 
 namespace
 {
-    constexpr vr::EVREye kPreviewEye = vr::Eye_Left;
-    constexpr wchar_t kWindowClassName[] = L"SteamVRMirrorPreviewWindow";
-    constexpr wchar_t kWindowTitle[] = L"SteamVR Mirror Preview";
-    constexpr UINT kInitialClientWidth = 1280;
-    constexpr UINT kInitialClientHeight = 720;
+    constexpr vr::EVREye PreviewEye = vr::Eye_Left;
+    constexpr wchar_t WindowClassName[] = L"SteamVRMirrorPreviewWindow"; // NOLINT(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays)
+    constexpr wchar_t WindowTitle[] = L"SteamVR Mirror Preview";  // NOLINT(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays)
+    constexpr UINT InitialClientWidth = 1280;
+    constexpr UINT InitialClientHeight = 720;
+    constexpr DWORD SleepMs = 16;
+    constexpr float ClearR = 0.02f;
+    constexpr float ClearG = 0.02f;
+    constexpr float ClearB = 0.025f;
+    constexpr float Half = 0.5f;
 
     std::wstring ToWide(const char *text)
     {
@@ -46,7 +51,7 @@ namespace
     {
         wchar_t *buffer = nullptr;
         const DWORD flags = FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS;
-        DWORD length = FormatMessageW(flags, nullptr, static_cast<DWORD>(hr), 0, reinterpret_cast<LPWSTR>(&buffer), 0, nullptr);
+        DWORD length = FormatMessageW(flags, nullptr, static_cast<DWORD>(hr), 0, reinterpret_cast<LPWSTR>(&buffer), 0, nullptr); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         std::wstring message = length > 0 && buffer != nullptr ? std::wstring(buffer, length) : L"Unknown error";
         if (buffer != nullptr) {
             LocalFree(buffer);
@@ -93,11 +98,11 @@ namespace
     class PreviewApp
     {
     public:
-        int Run(HINSTANCE instance, int show_command)
+        int Run(HINSTANCE instance, int showCommand)
         {
             instance_ = instance;
 
-            if (!CreateMainWindow(show_command)) {
+            if (!CreateMainWindow(showCommand)) {
                 return 1;
             }
 
@@ -130,7 +135,7 @@ namespace
                 }
 
                 if (is_minimized_) {
-                    Sleep(16);
+                    Sleep(SleepMs);
                     continue;
                 }
 
@@ -142,32 +147,32 @@ namespace
         }
 
     private:
-        bool CreateMainWindow(int show_command)
+        bool CreateMainWindow(int showCommand)
         {
-            WNDCLASSEXW window_class = {};
-            window_class.cbSize = sizeof(window_class);
-            window_class.lpfnWndProc = &PreviewApp::StaticWindowProc;
-            window_class.hInstance = instance_;
-            window_class.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-            window_class.lpszClassName = kWindowClassName;
+            WNDCLASSEXW windowClass = {};
+            windowClass.cbSize = sizeof(windowClass);
+            windowClass.lpfnWndProc = &PreviewApp::StaticWindowProc;
+            windowClass.hInstance = instance_;
+            windowClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+            windowClass.lpszClassName = WindowClassName;
 
-            if (RegisterClassExW(&window_class) == 0) {
+            if (RegisterClassExW(&windowClass) == 0) {
                 ShowFatalError(L"Failed to register window class.");
                 return false;
             }
 
-            RECT window_rect = { 0, 0, static_cast<LONG>(kInitialClientWidth), static_cast<LONG>(kInitialClientHeight) };
-            AdjustWindowRect(&window_rect, WS_OVERLAPPEDWINDOW, FALSE);
+            RECT windowRect = { 0, 0, static_cast<LONG>(InitialClientWidth), static_cast<LONG>(InitialClientHeight) };
+            AdjustWindowRect(&windowRect, WS_OVERLAPPEDWINDOW, FALSE);
 
             hwnd_ = CreateWindowExW(
                 0,
-                kWindowClassName,
-                kWindowTitle,
+                WindowClassName,
+                WindowTitle,
                 WS_OVERLAPPEDWINDOW,
                 CW_USEDEFAULT,
                 CW_USEDEFAULT,
-                window_rect.right - window_rect.left,
-                window_rect.bottom - window_rect.top,
+                windowRect.right - windowRect.left,
+                windowRect.bottom - windowRect.top,
                 nullptr,
                 nullptr,
                 instance_,
@@ -178,18 +183,18 @@ namespace
                 return false;
             }
 
-            ShowWindow(hwnd_, show_command);
+            ShowWindow(hwnd_, showCommand);
             UpdateWindow(hwnd_);
             return true;
         }
 
         bool InitializeOpenVR()
         {
-            vr::EVRInitError init_error = vr::VRInitError_None;
-            vr_system_ = vr::VR_Init(&init_error, vr::VRApplication_Background);
-            if (init_error != vr::VRInitError_None || vr_system_ == nullptr) {
+            vr::EVRInitError initError = vr::VRInitError_None;
+            vr_system_ = vr::VR_Init(&initError, vr::VRApplication_Background);
+            if (initError != vr::VRInitError_None || vr_system_ == nullptr) {
                 std::wstring message = L"OpenVR initialization failed:\n";
-                message += ToWide(vr::VR_GetVRInitErrorAsEnglishDescription(init_error));
+                message += ToWide(vr::VR_GetVRInitErrorAsEnglishDescription(initError));
                 ShowFatalError(message);
                 return false;
             }
@@ -212,33 +217,33 @@ namespace
             }
 
             ComPtr<IDXGIAdapter1> adapter;
-            int32_t adapter_index = -1;
-            vr_system_->GetDXGIOutputInfo(&adapter_index);
-            if (adapter_index >= 0) {
-                hr = factory_->EnumAdapters1(static_cast<UINT>(adapter_index), &adapter);
+            int32_t adapterIndex = -1;
+            vr_system_->GetDXGIOutputInfo(&adapterIndex);
+            if (adapterIndex >= 0) {
+                hr = factory_->EnumAdapters1(static_cast<UINT>(adapterIndex), &adapter);
                 if (FAILED(hr)) {
                     ShowFatalError(L"Failed to locate the graphics adapter SteamVR is using:\n" + HrToString(hr));
                     return false;
                 }
             }
 
-            UINT creation_flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
-            const D3D_FEATURE_LEVEL requested_levels[] = {
+            UINT creationFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+            const D3D_FEATURE_LEVEL requestedLevels[] = { // NOLINT(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays)
                 D3D_FEATURE_LEVEL_11_1,
                 D3D_FEATURE_LEVEL_11_0,
             };
 
-            D3D_FEATURE_LEVEL created_level = D3D_FEATURE_LEVEL_11_0;
+            D3D_FEATURE_LEVEL createdLevel = D3D_FEATURE_LEVEL_11_0;
             hr = D3D11CreateDevice(
                 adapter.Get(),
                 adapter ? D3D_DRIVER_TYPE_UNKNOWN : D3D_DRIVER_TYPE_HARDWARE,
                 nullptr,
-                creation_flags,
-                requested_levels,
-                static_cast<UINT>(std::size(requested_levels)),
+                creationFlags,
+                requestedLevels,
+                static_cast<UINT>(std::size(requestedLevels)),
                 D3D11_SDK_VERSION,
                 &device_,
-                &created_level,
+                &createdLevel,
                 &context_);
 
             if (FAILED(hr)) {
@@ -248,7 +253,7 @@ namespace
 
             DetectTearingSupport();
 
-            if (!CreateSwapChainResources(kInitialClientWidth, kInitialClientHeight)) {
+            if (!CreateSwapChainResources(InitialClientWidth, InitialClientHeight)) {
                 return false;
             }
 
@@ -321,31 +326,31 @@ namespace
                 return;
             }
 
-            BOOL allow_tearing = FALSE;
+            BOOL allowTearing = FALSE;
             if (SUCCEEDED(factory5->CheckFeatureSupport(
                     DXGI_FEATURE_PRESENT_ALLOW_TEARING,
-                    &allow_tearing,
-                    sizeof(allow_tearing)))) {
-                allow_tearing_ = allow_tearing == TRUE;
+                    &allowTearing,
+                    sizeof(allowTearing)))) {
+                allow_tearing_ = allowTearing == TRUE;
             }
         }
 
-        UINT SwapChainFlags() const
+        [[nodiscard]] UINT SwapChainFlags() const
         {
             return allow_tearing_ ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
         }
 
         void ConfigureSwapChainLatency()
         {
-            ComPtr<IDXGISwapChain2> swap_chain2;
-            if (SUCCEEDED(swap_chain_.As(&swap_chain2))) {
-                swap_chain2->SetMaximumFrameLatency(1);
+            ComPtr<IDXGISwapChain2> swapChain2;
+            if (SUCCEEDED(swap_chain_.As(&swapChain2))) {
+                swapChain2->SetMaximumFrameLatency(1);
             }
         }
 
         bool CreateShaders()
         {
-            static constexpr char vertex_shader_source[] =
+            static constexpr char VertexShaderSource[] = // NOLINT(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays)
                 "struct VSOut {\n"
                 "    float4 position : SV_Position;\n"
                 "    float2 uv : TEXCOORD0;\n"
@@ -369,7 +374,7 @@ namespace
                 "    return output;\n"
                 "}\n";
 
-            static constexpr char pixel_shader_source[] =
+            static constexpr char PixelShaderSource[] = // NOLINT(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays)
                 "Texture2D mirrorTexture : register(t0);\n"
                 "SamplerState mirrorSampler : register(s0);\n"
                 "struct VSOut {\n"
@@ -383,14 +388,14 @@ namespace
                 "    return color;\n"
                 "}\n";
 
-            ComPtr<ID3DBlob> vertex_blob;
-            if (!CompileShader(vertex_shader_source, "main", "vs_5_0", &vertex_blob)) {
+            ComPtr<ID3DBlob> vertexBlob;
+            if (!CompileShader(VertexShaderSource, "main", "vs_5_0", &vertexBlob)) {
                 return false;
             }
 
             HRESULT hr = device_->CreateVertexShader(
-                vertex_blob->GetBufferPointer(),
-                vertex_blob->GetBufferSize(),
+                vertexBlob->GetBufferPointer(),
+                vertexBlob->GetBufferSize(),
                 nullptr,
                 &vertex_shader_);
             if (FAILED(hr)) {
@@ -398,14 +403,14 @@ namespace
                 return false;
             }
 
-            ComPtr<ID3DBlob> pixel_blob;
-            if (!CompileShader(pixel_shader_source, "main", "ps_5_0", &pixel_blob)) {
+            ComPtr<ID3DBlob> pixelBlob;
+            if (!CompileShader(PixelShaderSource, "main", "ps_5_0", &pixelBlob)) {
                 return false;
             }
 
             hr = device_->CreatePixelShader(
-                pixel_blob->GetBufferPointer(),
-                pixel_blob->GetBufferSize(),
+                pixelBlob->GetBufferPointer(),
+                pixelBlob->GetBufferSize(),
                 nullptr,
                 &pixel_shader_);
             if (FAILED(hr)) {
@@ -416,48 +421,48 @@ namespace
             return true;
         }
 
-        bool CompileShader(const char *source, const char *entry_point, const char *target, ID3DBlob **out_blob)
+        bool CompileShader(const char *source, const char *entryPoint, const char *target, ID3DBlob **outBlob)
         {
             UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
-            ComPtr<ID3DBlob> shader_blob;
-            ComPtr<ID3DBlob> error_blob;
+            ComPtr<ID3DBlob> shaderBlob;
+            ComPtr<ID3DBlob> errorBlob;
             HRESULT hr = D3DCompile(
                 source,
                 strlen(source),
                 nullptr,
                 nullptr,
                 nullptr,
-                entry_point,
+                entryPoint,
                 target,
                 flags,
                 0,
-                &shader_blob,
-                &error_blob);
+                &shaderBlob,
+                &errorBlob);
 
             if (FAILED(hr)) {
                 std::wstring message = L"Shader compilation failed.";
-                if (error_blob) {
+                if (errorBlob) {
                     message += L"\n";
-                    message += ToWide(static_cast<const char *>(error_blob->GetBufferPointer()));
+                    message += ToWide(static_cast<const char *>(errorBlob->GetBufferPointer()));
                 }
                 ShowFatalError(message);
                 return false;
             }
 
-            *out_blob = shader_blob.Detach();
+            *outBlob = shaderBlob.Detach();
             return true;
         }
 
         bool CreateSampler()
         {
-            D3D11_SAMPLER_DESC sampler_desc = {};
-            sampler_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-            sampler_desc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-            sampler_desc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-            sampler_desc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-            sampler_desc.MaxLOD = D3D11_FLOAT32_MAX;
+            D3D11_SAMPLER_DESC samplerDesc = {}; // NOLINT(bugprone-invalid-enum-default-initialization)
+            samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+            samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+            samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+            samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+            samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
 
-            HRESULT hr = device_->CreateSamplerState(&sampler_desc, &sampler_state_);
+            HRESULT hr = device_->CreateSamplerState(&samplerDesc, &sampler_state_);
             if (FAILED(hr)) {
                 ShowFatalError(L"CreateSamplerState failed:\n" + HrToString(hr));
                 return false;
@@ -472,12 +477,12 @@ namespace
                 return;
             }
 
-            const float clear_color[4] = { 0.02f, 0.02f, 0.025f, 1.0f };
+            const float clearColor[4] = { ClearR, ClearG, ClearB, 1.0f }; // NOLINT(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays)
             context_->OMSetRenderTargets(1, backbuffer_rtv_.GetAddressOf(), nullptr);
-            context_->ClearRenderTargetView(backbuffer_rtv_.Get(), clear_color);
+            context_->ClearRenderTargetView(backbuffer_rtv_.Get(), clearColor);
 
-            vr::EVRCompositorError mirror_error = EnsureMirrorTexture();
-            if (mirror_error == vr::VRCompositorError_None && mirror_srv_ != nullptr) {
+            vr::EVRCompositorError mirrorError = EnsureMirrorTexture();
+            if (mirrorError == vr::VRCompositorError_None && mirror_srv_ != nullptr) {
                 RenderMirrorTexture(mirror_srv_);
 
                 if (last_status_ != L"streaming") {
@@ -488,14 +493,14 @@ namespace
                     last_status_ = L"streaming";
                 }
             } else {
-                std::wstring status = mirror_error == vr::VRCompositorError_None
+                std::wstring status = mirrorError == vr::VRCompositorError_None
                     ? L"waiting-for-frames"
-                    : L"mirror-error:" + CompositorErrorToString(mirror_error);
+                    : L"mirror-error:" + CompositorErrorToString(mirrorError);
                 if (last_status_ != status) {
                     UpdateWindowTitle(
-                        mirror_error == vr::VRCompositorError_None
+                        mirrorError == vr::VRCompositorError_None
                             ? L"Waiting for a scene app to submit frames..."
-                            : CompositorErrorToString(mirror_error));
+                            : CompositorErrorToString(mirrorError));
                     last_status_ = status;
                 }
             }
@@ -511,9 +516,9 @@ namespace
             }
 
             return vr_compositor_->GetMirrorTextureD3D11(
-                kPreviewEye,
+                PreviewEye,
                 device_.Get(),
-                reinterpret_cast<void **>(&mirror_srv_));
+                reinterpret_cast<void **>(&mirror_srv_)); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         }
 
         void ReleaseMirrorTexture()
@@ -524,20 +529,20 @@ namespace
             }
         }
 
-        void RenderMirrorTexture(ID3D11ShaderResourceView *mirror_srv)
+        void RenderMirrorTexture(ID3D11ShaderResourceView *mirrorSrv)
         {
             ComPtr<ID3D11Resource> resource;
-            mirror_srv->GetResource(&resource);
+            mirrorSrv->GetResource(&resource);
 
             ComPtr<ID3D11Texture2D> texture;
             if (FAILED(resource.As(&texture))) {
                 return;
             }
 
-            D3D11_TEXTURE2D_DESC texture_desc = {};
-            texture->GetDesc(&texture_desc);
-            mirror_width_ = texture_desc.Width;
-            mirror_height_ = texture_desc.Height;
+            D3D11_TEXTURE2D_DESC textureDesc = {};
+            texture->GetDesc(&textureDesc);
+            mirror_width_ = textureDesc.Width;
+            mirror_height_ = textureDesc.Height;
 
             D3D11_VIEWPORT viewport = CalculateViewport(client_width_, client_height_, mirror_width_, mirror_height_);
 
@@ -547,38 +552,38 @@ namespace
             context_->VSSetShader(vertex_shader_.Get(), nullptr, 0);
             context_->PSSetShader(pixel_shader_.Get(), nullptr, 0);
             context_->PSSetSamplers(0, 1, sampler_state_.GetAddressOf());
-            context_->PSSetShaderResources(0, 1, &mirror_srv);
+            context_->PSSetShaderResources(0, 1, &mirrorSrv);
             context_->Draw(4, 0);
 
-            ID3D11ShaderResourceView *null_srv = nullptr;
-            context_->PSSetShaderResources(0, 1, &null_srv);
+            ID3D11ShaderResourceView *nullSrv = nullptr;
+            context_->PSSetShaderResources(0, 1, &nullSrv);
         }
 
-        D3D11_VIEWPORT CalculateViewport(UINT target_width, UINT target_height, UINT source_width, UINT source_height) const
+        [[nodiscard]] static D3D11_VIEWPORT CalculateViewport(UINT targetWidth, UINT targetHeight, UINT sourceWidth, UINT sourceHeight)
         {
             D3D11_VIEWPORT viewport = {};
             viewport.MinDepth = 0.0f;
             viewport.MaxDepth = 1.0f;
 
-            if (target_width == 0 || target_height == 0 || source_width == 0 || source_height == 0) {
-                viewport.Width = static_cast<FLOAT>(std::max(target_width, 1u));
-                viewport.Height = static_cast<FLOAT>(std::max(target_height, 1u));
+            if (targetWidth == 0 || targetHeight == 0 || sourceWidth == 0 || sourceHeight == 0) {
+                viewport.Width = static_cast<FLOAT>(std::max(targetWidth, 1u));
+                viewport.Height = static_cast<FLOAT>(std::max(targetHeight, 1u));
                 return viewport;
             }
 
-            const float target_aspect = static_cast<float>(target_width) / static_cast<float>(target_height);
-            const float source_aspect = static_cast<float>(source_width) / static_cast<float>(source_height);
+            const float targetAspect = static_cast<float>(targetWidth) / static_cast<float>(targetHeight);
+            const float sourceAspect = static_cast<float>(sourceWidth) / static_cast<float>(sourceHeight);
 
-            if (target_aspect > source_aspect) {
-                viewport.Height = static_cast<FLOAT>(target_height);
-                viewport.Width = viewport.Height * source_aspect;
-                viewport.TopLeftX = (static_cast<FLOAT>(target_width) - viewport.Width) * 0.5f;
+            if (targetAspect > sourceAspect) {
+                viewport.Height = static_cast<FLOAT>(targetHeight);
+                viewport.Width = viewport.Height * sourceAspect;
+                viewport.TopLeftX = (static_cast<FLOAT>(targetWidth) - viewport.Width) * Half;
                 viewport.TopLeftY = 0.0f;
             } else {
-                viewport.Width = static_cast<FLOAT>(target_width);
-                viewport.Height = viewport.Width / source_aspect;
+                viewport.Width = static_cast<FLOAT>(targetWidth);
+                viewport.Height = viewport.Width / sourceAspect;
                 viewport.TopLeftX = 0.0f;
-                viewport.TopLeftY = (static_cast<FLOAT>(target_height) - viewport.Height) * 0.5f;
+                viewport.TopLeftY = (static_cast<FLOAT>(targetHeight) - viewport.Height) * Half;
             }
 
             return viewport;
@@ -617,32 +622,32 @@ namespace
                 hwnd_ = nullptr;
             }
 
-            UnregisterClassW(kWindowClassName, instance_);
+            UnregisterClassW(WindowClassName, instance_);
         }
 
         void ShowFatalError(const std::wstring &message)
         {
-            MessageBoxW(hwnd_, message.c_str(), kWindowTitle, MB_ICONERROR | MB_OK);
+            MessageBoxW(hwnd_, message.c_str(), WindowTitle, MB_ICONERROR | MB_OK);
         }
 
         void UpdateWindowTitle(const std::wstring &suffix)
         {
-            std::wstring title = suffix.rfind(kWindowTitle, 0) == 0 ? suffix : std::wstring(kWindowTitle) + L" - " + suffix;
+            std::wstring title = suffix.rfind(WindowTitle, 0) == 0 ? suffix : std::wstring(WindowTitle) + L" - " + suffix;
             SetWindowTextW(hwnd_, title.c_str());
         }
 
-        LRESULT WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_param)
+        LRESULT WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
         {
             switch (message) {
             case WM_SIZE:
-                is_minimized_ = (w_param == SIZE_MINIMIZED);
+                is_minimized_ = (wParam == SIZE_MINIMIZED);
                 if (!is_minimized_) {
-                    Resize(LOWORD(l_param), HIWORD(l_param));
+                    Resize(LOWORD(lParam), HIWORD(lParam));
                 }
                 return 0;
 
             case WM_KEYDOWN:
-                if (w_param == VK_ESCAPE) {
+                if (wParam == VK_ESCAPE) {
                     DestroyWindow(hwnd);
                 }
                 return 0;
@@ -652,37 +657,37 @@ namespace
                 hwnd_ = nullptr;
                 PostQuitMessage(0);
                 return 0;
-            }
 
-            return DefWindowProcW(hwnd, message, w_param, l_param);
+            default:
+                return DefWindowProcW(hwnd, message, wParam, lParam);
+            }
         }
 
-        static LRESULT CALLBACK StaticWindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_param)
+        static LRESULT CALLBACK StaticWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
         {
             PreviewApp *app = nullptr;
             if (message == WM_NCCREATE) {
-                auto *create_struct = reinterpret_cast<CREATESTRUCTW *>(l_param);
-                app = static_cast<PreviewApp *>(create_struct->lpCreateParams);
-                SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(app));
+                auto *createStruct = reinterpret_cast<CREATESTRUCTW *>(lParam); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast,performance-no-int-to-ptr)
+                app = static_cast<PreviewApp *>(createStruct->lpCreateParams);
+                SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(app)); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
                 app->hwnd_ = hwnd;
             } else {
-                app = reinterpret_cast<PreviewApp *>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+                app = reinterpret_cast<PreviewApp *>(GetWindowLongPtrW(hwnd, GWLP_USERDATA)); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast,performance-no-int-to-ptr)
             }
 
             if (app != nullptr) {
-                return app->WindowProc(hwnd, message, w_param, l_param);
+                return app->WindowProc(hwnd, message, wParam, lParam);
             }
 
-            return DefWindowProcW(hwnd, message, w_param, l_param);
+            return DefWindowProcW(hwnd, message, wParam, lParam);
         }
 
-    private:
         HINSTANCE instance_ = nullptr;
         HWND hwnd_ = nullptr;
         bool running_ = true;
         bool is_minimized_ = false;
-        UINT client_width_ = kInitialClientWidth;
-        UINT client_height_ = kInitialClientHeight;
+        UINT client_width_ = InitialClientWidth;
+        UINT client_height_ = InitialClientHeight;
         UINT mirror_width_ = 0;
         UINT mirror_height_ = 0;
         bool allow_tearing_ = false;
@@ -703,8 +708,10 @@ namespace
     };
 }
 
-int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command)
+int WINAPI wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _In_ PWSTR cmdLine, _In_ int showCommand) // NOLINT(bugprone-easily-swappable-parameters,readability-non-const-parameter)
 {
+    (void)prevInstance;
+    (void)cmdLine;
     PreviewApp app;
-    return app.Run(instance, show_command);
+    return app.Run(instance, showCommand);
 }

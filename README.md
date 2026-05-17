@@ -1,172 +1,225 @@
 # OpenVR-Emulation-Driver
 
-This repository is a fork of the original [Simple-OpenVR-Driver-Tutorial](https://github.com/terminal29/Simple-OpenVR-Driver-Tutorial) with additional improvements on top of the upstream tutorial project.
+A fork of [OpenVR-Emulation-Driver by Nmzik](https://github.com/Nmzik/OpenVR-Emulation-Driver) (itself originally based on [Simple-OpenVR-Driver-Tutorial](https://github.com/terminal29/Simple-OpenVR-Driver-Tutorial)) focused on VR emulation when no physical headset is available — for development, testing, and input experimentation.
 
-This fork is intended for VR emulation driver use cases where no physical VR headset is available. The driver can emulate a headset and controllers in software for development, testing, and input experimentation.
+> **Windows only.** The driver relies on Win32 APIs (`Windows.h`, `XInput`, `GetAsyncKeyState`, `GetModuleHandleEx`) and the SteamVR runtime, which only runs on Windows. Linux/macOS are not supported.
 
-For emulation testing purposes, this fork has been tested with Unreal Engine 5 VR games, including Metro Awakening.
+This fork: **https://github.com/omarekik/OpenVR-Emulation-Driver**
 
-![Metro Awakening emulation screenshot](images/img1.png)
+Tested with the SteamVR Demo app.
 
-This fork also adds:
+![SteamVR Demo running with emulated driver](images/steamvr-demo.png)
 
+## What this fork adds
+
+- **Configurable input mapping** via [`resources/input_mapping.ini`](driver_files/driver/openvr-emulator/resources/input_mapping.ini) — remap gamepad buttons, thresholds, and speeds without recompiling
+- XInput gamepad support for HMD look/move and full controller input
 - OpenXR-compatible controller poses and bindings
-- Added button mapping controls for A/B/X/Y controller inputs
-- XInput controller support, including gamepad-driven headset and controller input
-- Emulated HMD proximity reporting so SteamVR can treat the headset as worn
-- A standalone [`preview_app`](preview_app/README.md) that mirrors a single SteamVR compositor eye into a desktop window, created because I could not find a way to make the SteamVR compositor render only one eye by itself
-
-You will need to understand C++11 and some C++17 features at least to make the most use of this repo. It features:
-
-- [Central driver setup](driver_files/src/Driver/IVRDriver.hpp)
-to manage addition and removal of devices, and updating devices each frame, collecting events, access to OpenVR internals, etc...
-
-- [Reading configuration files](driver_files/src/Driver/VRDriver.cpp#L114)
-to load user settings 
-
-- [Logging](driver_files/src/Driver/VRDriver.cpp#L142)
-for simple debug messages
-
-- [Tracked HMD](driver_files/src/Driver/HMDDevice.hpp)
-which is a tracked device that can emulate a VR headset when no physical headset hardware is connected, including proximity reporting for headset-worn state
-
-- [Tracked Controllers](driver_files/src/Driver/ControllerDevice.hpp)
-which is a tracked device that has mapped controller buttons, triggers, joysticks, haptics, XInput support, and OpenXR-compatible bindings
-
-- [Tracked Trackers](driver_files/src/Driver/TrackerDevice.hpp)
-which is a device purely meant for tracking the location of an object
-
-- [Tracking References (base stations)](driver_files/src/Driver/TrackingReferenceDevice.hpp)
-which is a base station or camera designed as a fixed point of reference to the real world
-
-- [Custom Device Render Models](driver_files/driver/example/resources/rendermodels/example_controller)
-so your new controllers look cool
-
-- [Visual Studio Debugging Setup for SteamVR](#debugging)
-because a debugger is a developers best friend <sup>(besides ctrl-z)</sup>.
+- A/B/X/Y button mapping for left and right controllers
+- Emulated HMD proximity reporting so SteamVR treats the headset as worn
+- Visual Studio debugger pre-configured to launch `vrstartup.exe` (set by CMake)
+- A standalone [`preview_app`](preview_app/README.md) that mirrors a single SteamVR compositor eye into a desktop window
 
 ## Building
-- Clone this fork and its submodules
-	- `git clone --recursive https://github.com/Nmzik/OpenVR-Emulation-Driver.git`
-- Build project with CMake
-	- `cd OpenVR-Emulation-Driver && cmake .`
-- Open project with Visual Studio and hit build
-	- Driver folder structure and files will be copied to the output folder as `example`.
-	
-## Installation
 
-There are two ways to "install" your plugin:
+**Prerequisites:** Python 3, Visual Studio 2022 with the "Desktop development with C++" workload (includes the Windows SDK and MSVC).
 
-- Find your SteamVR driver directory, which should be at:
-  `C:\Program Files (x86)\Steam\steamapps\common\SteamVR\drivers`
-  and copy the `example` directory from the project's build directory into the SteamVR drivers directory. Your folder structure should look something like this:
+### First-time setup
 
-![Drivers folder structure](https://i.imgur.com/hOsDk1H.png)
-or
+Run the bootstrap script once after cloning (or whenever `conanfile.py` changes). It creates a Python virtual environment, installs Conan, fetches all dependencies, and configures CMake:
 
-- Navigate to `C:\Users\<Username>\AppData\Local\openvr` and find the `openvrpaths.vrpath` file. Open this file with your text editor of choice, and under `"external_drivers"`, add another entry with the location of the `example` folder. For example mine looks like this after adding the entry:
+```powershell
+git clone --recursive https://github.com/omarekik/OpenVR-Emulation-Driver.git
+cd OpenVR-Emulation-Driver
+.\scripts\bootstrap.ps1
+```
+
+Add `-Release` to also configure the Release preset:
+
+```powershell
+.\scripts\bootstrap.ps1 -Release
+```
+
+Open `build\OpenVR_Emulation_Driver.sln` in Visual Studio and build.
+
+### Subsequent builds
+
+After the first bootstrap, use Visual Studio normally or:
+
+```powershell
+cmake --build build --config Debug
+```
+
+No need to re-run the bootstrap unless `conanfile.py` changes.
+
+## Running tests
+
+Unit tests are built as the `driver_tests` target (GTest/GMock). Two ways to run them from Visual Studio:
+
+**Option 1 — RUN_TESTS target** (quick pass/fail)
+
+In Solution Explorer, expand **CMakePredefinedTargets** → right-click **RUN_TESTS** → **Build**. CTest output appears in the Build Output pane.
+
+**Option 2 — Test Explorer** (recommended)
+
+Open **View → Test Explorer**. Visual Studio reads the test list discovered at post-build and shows each `TEST(suite, name)` individually. You can run all tests, re-run failures, or right-click a single test to debug it with a breakpoint.
+
+> The test list is populated by a post-build step that runs `driver_tests.exe --gtest_list_tests`. Build `driver_tests` at least once before opening Test Explorer.
+
+## Code style & static analysis
+
+Both tools are installed into the project's Python virtual environment by the bootstrap script (`pip install clang-format clang-tidy`). No separate LLVM installation is required.
+
+### clang-format
+
+All C++ sources are formatted with **clang-format** using the Microsoft base style (see [`.clang-format`](.clang-format) for the full configuration — only meaningful deviations from the Microsoft defaults are listed there).
+
+Format everything in-place:
+
+```powershell
+.\scripts\format_code.ps1
+```
+
+CI runs the same script and fails the pipeline if any file would be changed, so format before pushing.
+
+### clang-tidy
+
+Static analysis uses **clang-tidy** with the check set and naming conventions defined in [`.clang-tidy`](.clang-tidy). Naming follows Microsoft C++ conventions (`PascalCase` methods/types, `m_camelCase` members, `camelCase` locals).
+
+**Locally (Visual Studio):** analysis is registered as an on-demand analyser for each target. Run it via:
+
+> **Build → Run Code Analysis on Solution**
+
+Findings appear in the **Code Analysis Results** window and **Error List**. Normal builds are not affected.
+
+**CI (Ninja):** clang-tidy runs automatically on every translation unit during the build via `CXX_CLANG_TIDY`. All warnings are treated as errors (`WarningsAsErrors: "*"`).
+
+The `ENABLE_CLANG_TIDY` CMake option (default `ON` in all presets) controls whether the integration is wired up at configure time.
+
+
+
+> **If you build with Visual Studio (or `cmake --build`) running as Administrator**, the post-build step deploys the driver automatically to:
+> ```
+> C:\Program Files (x86)\Steam\steamapps\common\SteamVR\drivers\openvr-emulator
+> ```
+> Any previously installed version is backed up as `openvr-emulator.bak` before being replaced. No manual installation is needed.
+
+If you prefer not to run as Administrator, choose one of the manual methods below:
+
+**Option A — copy into SteamVR drivers:**
+Copy the built `openvr-emulator` folder into:
+```
+C:\Program Files (x86)\Steam\steamapps\common\SteamVR\drivers\
+```
+
+**Option B — register via `openvrpaths.vrpath`:**
+Open `C:\Users\<Username>\AppData\Local\openvr\openvrpaths.vrpath` and add the path to the built `openvr-emulator` folder under `"external_drivers"`:
 
 ```json
 {
-	"config" : 
-	[
-		"C:\\Program Files (x86)\\Steam\\config",
-		"c:\\program files (x86)\\steam\\config"
-	],
-	"external_drivers" : 
-	[
-		"C:\\Users\\<Username>\\Documents\\Programming\\c++\\Simple-OpenVR-Driver-Tutorial\\build\\Debug\\example"
-	],
-	"jsonid" : "vrpathreg",
-	"log" : 
-	[
-		"C:\\Program Files (x86)\\Steam\\logs",
-		"c:\\program files (x86)\\steam\\logs"
-	],
-	"runtime" : 
-	[
-		"C:\\Program Files (x86)\\Steam\\steamapps\\common\\SteamVR"
-	],
-	"version" : 1
+    "external_drivers": [
+        "C:\\path\\to\\build\\Debug\\openvr-emulator"
+    ]
 }
 ```
 
-## Current Controls
-This fork supports keyboard/mouse input and the first connected XInput controller.
+## Controls
 
-### HMD Controls
-- `Space`: toggle mouse look for the emulated HMD
-- Mouse: look around when mouse look is enabled
-- Arrow keys: rotate the HMD
-- `W/A/S/D`: move the HMD
-- XInput right stick: HMD look by default
-- XInput left stick: HMD movement when left joystick mode is disabled
-- XInput D-pad: HMD movement
-- The emulated HMD reports `/proximity` as active so SteamVR sees it as worn
+All mappings are configurable in [`resources/input_mapping.ini`](driver_files/driver/openvr-emulator/resources/input_mapping.ini). Defaults are listed below.
 
-### Controller Button Mapping
-- Right controller: `E` = `A`, `R` = `B`
-- Left controller: `Q` = `X`, `F` = `Y`
-- XInput right controller buttons: `A`, `B`, `RT`, `RB`, right stick click, `Start`
-- XInput left controller buttons: `X`, `Y`, `LB`, left stick click, `Back`
-- `LT`: left trigger input until aim mode is engaged
+### HMD
 
-### XInput Joystick Modes
-- Left stick starts in left VR joystick mode
-- Press `X + Y` to toggle the left stick between left VR joystick input and HMD movement
-- Right stick starts in HMD look mode
-- Press `A + B` to toggle the right stick between right VR joystick input and HMD look
-- Holding `LT` enters aim mode for the right controller when the right stick is not in right joystick mode, replacing right-stick HMD look while held
+| Input | Action |
+|---|---|
+| Left stick X | Look yaw (left / right) |
+| Left stick Y | Look pitch (up / down) |
+| Left trigger | Move forward (analog) |
+| Left trigger + LB | Move backward |
+| Mouse (toggle `Space`) | Look yaw / pitch |
+
+### Right Controller
+
+| Input | Action |
+|---|---|
+| A button / `E` key | A button |
+| B button / `R` key | B button |
+| Right trigger | Trigger (click ≥ 75%) |
+| RB | Grip |
+| Right stick X/Y | VR joystick |
+| Right stick click | Joystick click |
+| Start | System button |
+| D-pad ←/→ | Slide controller pose left / right |
+| D-pad ↑/↓ | Slide controller pose forward / back |
+| Gamepad Y | Raise controller pose |
+| Gamepad X | Lower controller pose |
+
+### Left Controller
+
+| Input | Action |
+|---|---|
+| **Back** | **Swap left/right controller input mapping** (press again to restore) |
+| Left stick click | Joystick click |
+
+> Left trigger, LB, left stick, and gamepad X/Y are consumed by HMD movement and right-controller pose adjustment and are not forwarded as left VR controller inputs.
+>
+> The `Back` button swap is a runtime toggle — no restart needed. Haptic rumble routing also follows the swap (left motor tracks the effective left controller).
 
 ### Haptics
-- OpenVR haptic events are forwarded to XInput rumble
 
-## Notes
-- This fork is aimed at emulation and testing workflows, but SteamVR standby/sleep behavior can still vary across runtimes and individual games.
-- Unreal Engine 5 commercial titles may not all respond identically to emulated headset activity even when the HMD proximity state is reported as active.
+OpenVR haptic events are forwarded to XInput rumble (left motor = left controller, right motor = right controller). Routing respects the Back-button swap.
 
-## Preview App
-This repository also includes [`preview_app`](preview_app/README.md), a small standalone OpenVR desktop utility that mirrors a single compositor eye into its own window.
+## Input Mapping Configuration
 
-I created it because I could not find a way to get the SteamVR compositor to render only one eye on its own. The app provides that focused single-eye preview instead, and defaults to the left eye through `kPreviewEye` in [`preview_app/SteamVRMirrorPreview.cpp`](preview_app/SteamVRMirrorPreview.cpp).
+Edit `resources/input_mapping.ini` inside the driver folder and restart SteamVR to apply changes. No recompile needed.
+
+```ini
+[hmd]
+look_speed        = 1.5   ; radians/sec for left-stick look
+move_speed        = 1.0   ; m/s for left-trigger movement
+mouse_sensitivity = 0.003 ; radians/pixel
+
+[right_controller]
+pose_move_speed         = 0.5  ; m/s for d-pad / X / Y pose adjustment
+trigger_click_threshold = 0.75
+```
+
+See the file for all available keys and accepted value formats.
+
+## Code Structure
+
+| File | Purpose |
+|---|---|
+| [`IVRDriver.hpp`](driver_files/src/Driver/IVRDriver.hpp) | Central driver interface — device management, frame updates, OpenVR access |
+| [`VRDriver.cpp`](driver_files/src/Driver/VRDriver.cpp) | Driver init, loads `InputConfig`, registers all devices |
+| [`InputConfig.hpp/cpp`](driver_files/src/Driver/InputConfig.hpp) | INI-based input mapping config, parsed at startup |
+| [`HMDDevice.hpp/cpp`](driver_files/src/Driver/HMDDevice.hpp) | Emulated HMD — look via left stick, move via left trigger, mouse look |
+| [`ControllerDevice.hpp/cpp`](driver_files/src/Driver/ControllerDevice.hpp) | Controllers — buttons, triggers, joysticks, haptics, pose adjustment |
+| [`TrackerDevice.hpp`](driver_files/src/Driver/TrackerDevice.hpp) | Generic object tracker |
+| [`TrackingReferenceDevice.hpp`](driver_files/src/Driver/TrackingReferenceDevice.hpp) | Fixed-position base station / tracking reference |
 
 ## Debugging
-Debugging SteamVR is not as simple as it seems because of the startup procedure it uses. The SteamVR ecosystem consists of a couple programs:
 
- - **vrserver**: the driver host
- - **vrcompositor**: the render engine
- - **vrmonitor**: the popup that displays status information
- - **vrdashboard**: the VR menu/overlay
- - **vrstartup**: a program to start everything up
- 
- To debug effectively in Visual Studio, you can use an extension called [Microsoft Child Process Debugging Power Tool](https://marketplace.visualstudio.com/items?itemName=vsdbgplat.MicrosoftChildProcessDebuggingPowerTool) and enable debugging child processes, disable debugging for all other child processes, and add `vrserver.exe` as a child process to debug as below:
-  
+SteamVR debugging requires attaching to a child process. The recommended setup:
+
+1. Install [Microsoft Child Process Debugging Power Tool](https://marketplace.visualstudio.com/items?itemName=vsdbgplat.MicrosoftChildProcessDebuggingPowerTool)
+2. Enable child process debugging, disable all child processes except `vrserver.exe`
+3. The CMakeLists already sets the VS debugger command to:
+   `C:\Program Files (x86)\Steam\steamapps\common\SteamVR\bin\win64\vrstartup.exe`
+
+Press **F5** in Visual Studio to launch SteamVR and attach to `vrserver.exe`.
+
 ![Child process debugging settings](https://i.imgur.com/yDNvLMm.png)
 
-Set the program the project should run in debug mode to **vrstartup** (Usually located `C:\Program Files (x86)\Steam\steamapps\common\SteamVR\bin\win64\vrstartup.exe`). Now we can start up SteamVR without needing to go through Steam, and can properly startup all the other programs vrserver needs. 
+## Preview App
 
-## Issues
-I don't have an issue template, but if you find what you think is a bug, and can describe how to reproduce it, please leave an issue and/or pull request with the details.
+[`preview_app`](preview_app/README.md) is a small standalone OpenVR utility that mirrors one compositor eye into a desktop window. The default eye is set via `kPreviewEye` in [`SteamVRMirrorPreview.cpp`](preview_app/SteamVRMirrorPreview.cpp).
 
 ## License
-MIT License
 
-Copyright (c) 2020 Jacob Hilton (Terminal29)
+MIT License — Copyright (c) 2020 Jacob Hilton (Terminal29), portions Copyright (c) 2026 omarekik
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

@@ -1,9 +1,9 @@
 [
   {
     "language_tag": "en_US",
-    "example_controller": "Example Controller",
-    "example_tracker": "Example Tracker",
-    "example_basestation": "Example BaseStation",
+    "openvr-emulator_controller": "OpenVR Emulator Controller",
+    "openvr-emulator_tracker": "OpenVR Emulator Tracker",
+    "openvr-emulator_basestation": "OpenVR Emulator BaseStation",
     "/input/a": "A Button",
     "/input/b": "B Button",
     "/input/x": "X Button",
@@ -16,3 +16,4 @@
     "/output/haptic": "Haptic"
   }
 ]
+

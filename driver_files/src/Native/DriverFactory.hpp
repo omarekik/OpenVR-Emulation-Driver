@@ -1,14 +1,14 @@
 #pragma once
 
-#include <cstdlib>
-#include <memory>
-
 #include <openvr_driver.h>
 
 #include <Driver/IVRDriver.hpp>
+#include <cstdlib>
+#include <memory>
 
-extern "C" __declspec(dllexport) void* HmdDriverFactory(const char* interface_name, int* return_code);
+extern "C" __declspec(dllexport) void *HmdDriverFactory(const char *interfaceName, int *returnCode);
 
-namespace ExampleDriver {
-    std::shared_ptr<ExampleDriver::IVRDriver> GetDriver();
+namespace OpenVREmulatorDriver
+{
+std::shared_ptr<OpenVREmulatorDriver::IVRDriver> GetDriver();
 }

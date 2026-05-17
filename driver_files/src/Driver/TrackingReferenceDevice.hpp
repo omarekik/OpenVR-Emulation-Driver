@@ -1,40 +1,38 @@
 #pragma once
 
+#include <Driver/IVRDevice.hpp>
+#include <Native/DriverFactory.hpp>
 #include <chrono>
 #include <cmath>
 
-#include <linalg.h>
+namespace OpenVREmulatorDriver
+{
+class TrackingReferenceDevice : public IVRDevice
+{
+public:
+    explicit TrackingReferenceDevice(std::string serial);
+    ~TrackingReferenceDevice() override = default; // NOLINT(cppcoreguidelines-special-member-functions)
 
-#include <Driver/IVRDevice.hpp>
-#include <Native/DriverFactory.hpp>
+    // Inherited via IVRDevice
+    std::string GetSerial() override;
+    void Update() override;
+    vr::TrackedDeviceIndex_t GetDeviceIndex() override;
+    DeviceType GetDeviceType() override;
 
-namespace ExampleDriver {
-    class TrackingReferenceDevice : public IVRDevice {
-        public:
+    vr::EVRInitError Activate(uint32_t unObjectId) override;
+    void Deactivate() override;
+    void EnterStandby() override;
+    void *GetComponent(const char *pchComponentNameAndVersion) override;
+    void DebugRequest(const char *pchRequest, char *pchResponseBuffer,
+                      uint32_t unResponseBufferSize) override;
+    vr::DriverPose_t GetPose() override;
 
-            TrackingReferenceDevice(std::string serial);
-            ~TrackingReferenceDevice() = default;
+private:
+    vr::TrackedDeviceIndex_t device_index_ = vr::k_unTrackedDeviceIndexInvalid;
+    std::string serial_;
 
-            // Inherited via IVRDevice
-            virtual std::string GetSerial() override;
-            virtual void Update() override;
-            virtual vr::TrackedDeviceIndex_t GetDeviceIndex() override;
-            virtual DeviceType GetDeviceType() override;
+    vr::DriverPose_t last_pose_ = IVRDevice::MakeDefaultPose();
 
-            virtual vr::EVRInitError Activate(uint32_t unObjectId) override;
-            virtual void Deactivate() override;
-            virtual void EnterStandby() override;
-            virtual void* GetComponent(const char* pchComponentNameAndVersion) override;
-            virtual void DebugRequest(const char* pchRequest, char* pchResponseBuffer, uint32_t unResponseBufferSize) override;
-            virtual vr::DriverPose_t GetPose() override;
-
-    private:
-        vr::TrackedDeviceIndex_t device_index_ = vr::k_unTrackedDeviceIndexInvalid;
-        std::string serial_;
-
-        vr::DriverPose_t last_pose_ = IVRDevice::MakeDefaultPose();
-
-        float random_angle_rad_;
-
-    };
+    float random_angle_rad_;
 };
+};  // namespace OpenVREmulatorDriver
